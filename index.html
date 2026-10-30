@@ -79,6 +79,19 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
 #dot.on{background:#2ecc71} #dot.err{background:#e53935}
 #toast{position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);background:rgba(20,20,20,.92);color:#fff;padding:12px 20px;border-radius:10px;font-size:18px;max-width:80vw;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none}
 #toast.show{opacity:1}
+textarea.gloss{min-height:150px;font-family:inherit;font-size:14px;line-height:1.5}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{background:#eef2f7;border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px}
+.src-row{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:6px}
+.src-row button{padding:2px 8px;font-size:13px}
+#fixOut{margin-top:6px;font-size:15px}
+#fixOut b{color:var(--ok)}
+.cmp{margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.cmp div{display:grid;grid-template-columns:150px 1fr 60px;gap:8px;padding:8px 10px;border-top:1px solid var(--line);font-size:15px}
+.cmp div:first-child{border-top:none}
+.cmp .eng{color:var(--muted);font-size:13px}
+.cmp .ms{color:var(--muted);font-size:13px;text-align:right}
+#sumBox{white-space:pre-wrap;font-size:14px;line-height:1.6;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:12px 14px;max-height:420px;overflow:auto}
 #pageNo{cursor:pointer}
 #menu{position:absolute;right:1.2vw;bottom:calc(1.5vh + 52px);display:flex;flex-direction:column;gap:6px;background:rgba(20,20,20,.92);padding:10px;border-radius:12px}
 #menu button{background:#2b2f36;color:#fff;border:1px solid #444;font-size:18px;padding:10px 16px;text-align:left;min-width:190px}
@@ -141,12 +154,42 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
    </div>
    <div id="trStatus" class="status">번역 상태 확인 중…</div>
    <button id="btnTrLoad" style="margin-top:8px" hidden>⬇ 번역 모델 내려받기</button>
-   <p class="note">자동: PC 크롬이면 크롬 내장, 아이패드 등은 허깅페이스 모델을 씁니다.<br>
+   <div style="margin-top:14px"><label>번역 비교 — 문장을 입력하면 엔진별 번역을 나란히 보여 줍니다 (음성인식 없이 번역 품질만 확인)</label></div>
+   <div class="row" style="margin-top:6px;flex-wrap:nowrap">
+    <input id="cmpIn" placeholder="예: 오늘은 싱가포르의 QR 반납 제도를 원주시에 어떻게 적용할 수 있는지 여쭙고 싶습니다." style="flex:1">
+    <button id="btnCmp" style="flex:none">비교</button>
+   </div>
+   <div id="cmpOut"></div>
+   <p class="note">자동: PC 크롬이면 크롬 내장(품질·속도 가장 좋음), 아이패드 등은 허깅페이스 모델을 씁니다. 허깅페이스 한→영 모델은 품질이 낮은 편이라 <b>용어집을 꼭 채워 주세요.</b><br>
    허깅페이스 모델은 처음 한 번 모델 파일만 내려받고(한→영 약 110MB · 영→한 약 850MB), 번역은 이 기기 안에서 처리됩니다. <b>와이파이에서 미리 받아 두세요.</b> 영→한 모델은 크고 느려 PC 전용(실험용)입니다.</p>
   </div>
 
   <div class="card">
-   <h2><span class="num">3</span>엔진</h2>
+   <h2><span class="num">3</span>용어집·참고자료 <span class="note" style="margin:0;font-weight:400">(잘못 들린 고유명사를 자동으로 고침)</span></h2>
+   <label>참고자료 올리기 — 사업계획서·보고서 등 (PDF·TXT, 여러 개 가능)</label>
+   <div class="row" style="flex:none;margin-top:6px">
+    <button id="btnRef" style="flex:none">📎 참고자료 선택</button>
+    <input id="refFile" type="file" accept=".pdf,.txt,.md,application/pdf,text/plain" multiple hidden>
+   </div>
+   <p class="note">발표자료 PDF의 글자도 자동으로 사용합니다. 한글(HWP)·워드 파일은 PDF로 저장해서 올려 주세요. 자료는 이 기기 안에서만 쓰고 외부로 보내지 않습니다.</p>
+   <div id="refList"></div>
+   <div id="termInfo" class="note"></div>
+   <div id="termChips" class="chips"></div>
+
+   <div style="margin-top:14px"><label>용어집</label> <button id="btnGlossEx" style="padding:2px 10px;font-size:13px;margin-left:6px">예시 넣기</button></div>
+   <textarea id="gloss" class="gloss" style="margin-top:6px" placeholder="# 틀리게 들린 말 → 바른 말   (자막을 고침)
+언제 시청 → 원주시청
+# 바른 말 = 영어 표기   (번역에 그대로 사용)
+원주시청 = Wonju City Hall"></textarea>
+   <label class="check" style="margin-top:8px"><input id="optAutoFix" type="checkbox" checked> 참고자료 용어로 비슷한 소리 자동 교정 (한국어)</label>
+   <div class="row" style="margin-top:10px">
+    <div><label>교정 시험 — 잘못 들린 문장을 넣어 보세요</label><input id="fixIn" placeholder="예: 오늘 발표를 맡은 언제 시청 팀장입니다"></div>
+   </div>
+   <div id="fixOut" class="note"></div>
+  </div>
+
+  <div class="card">
+   <h2><span class="num">4</span>음성인식 엔진</h2>
    <div class="radio">
     <label><input type="radio" name="engine" value="basic" checked> 기본 (브라우저 내장 음성인식)</label>
     <label class="off"><input type="radio" name="engine" value="secure" disabled> 보안 (Whisper·NLLB) — 2·3단계에서 추가</label>
@@ -156,7 +199,7 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
   </div>
 
   <div class="card">
-   <h2><span class="num">4</span>회의 정보 <span class="note" style="margin:0;font-weight:400">(회의록 맨 위에 들어갑니다)</span></h2>
+   <h2><span class="num">5</span>회의 정보 <span class="note" style="margin:0;font-weight:400">(회의록 맨 위에 들어갑니다)</span></h2>
    <div class="row">
     <div><label>일시</label><input id="mDate" type="datetime-local"></div>
     <div><label>장소</label><input id="mPlace" placeholder="예: URA 센터 회의실"></div>
@@ -168,7 +211,7 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
   </div>
 
   <div class="card">
-   <h2><span class="num">5</span>30초 자막 테스트 <span class="note" style="margin:0;font-weight:400">(선택, 강력 권장)</span></h2>
+   <h2><span class="num">6</span>30초 자막 테스트 <span class="note" style="margin:0;font-weight:400">(선택, 강력 권장)</span></h2>
    <button id="btnTest">🎤 테스트 시작</button>
    <span class="note">마이크 권한 창이 뜨면 '허용'을 누르고 말해 보세요.</span>
    <div id="testBox"><span style="opacity:.5">여기에 자막이 나타납니다</span></div>
@@ -239,6 +282,14 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
    <button id="btnSetup">준비 화면</button>
    <button id="btnNew">🗑 새 회의 시작</button>
   </div>
+  <div class="card">
+   <h2 style="justify-content:space-between">요약 정보 <span class="note" style="margin:0;font-weight:400">(저장 파일 맨 위에 들어갑니다)</span></h2>
+   <div id="sumBox"></div>
+   <div class="row" style="flex:none;margin-top:10px">
+    <button id="btnAiSum" style="flex:none">🤖 AI 핵심 요약 만들기 (PC 크롬 · 테스트 필요)</button>
+   </div>
+   <div id="aiSumStatus" class="note"></div>
+  </div>
   <div id="mCount" class="note"></div>
   <div class="mrow head"><div>시각</div><div>슬라이드</div><div>중요</div><div>원문</div><div class="tgtcol">번역</div><div></div></div>
   <div id="mList"></div>
@@ -262,6 +313,9 @@ const S = {
   lang:'ko',            // 지금 발표자가 말하는 언어
   translate:true,
   trEngine:'auto',      // auto | chrome | hf
+  glossary:'',
+  aiSummary:'',
+  autoFix:true,
   reserve:true,
   meta:{date:'', place:'', org:'', people:''},
   entries:[],           // {id,time,slide,lang,src,tgt,imp}
@@ -282,8 +336,8 @@ function saveSoon(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,400);
 function saveNow(){
   try{
     localStorage.setItem(LS_KEY, JSON.stringify({
-      v:1, savedAt:Date.now(), lang:S.lang, translate:S.translate, trEngine:S.trEngine, reserve:S.reserve,
-      meta:S.meta, entries:S.entries, pdfName:S.pdfName, page:S.page, capSize:S.capSize
+      v:1, savedAt:Date.now(), lang:S.lang, translate:S.translate, trEngine:S.trEngine, glossary:S.glossary, autoFix:S.autoFix, reserve:S.reserve,
+      meta:S.meta, entries:S.entries, aiSummary:S.aiSummary, pdfName:S.pdfName, page:S.page, capSize:S.capSize
     }));
   }catch(e){ console.warn('자동 저장 실패', e); }
 }
@@ -335,6 +389,7 @@ async function loadPdf(buf, name){
   await pdfWorkerReady();
   S.slides.forEach(u=>URL.revokeObjectURL(u)); S.slides=[];
   const pdf = await pdfjsLib.getDocument({data:new Uint8Array(buf.slice(0))}).promise;
+  let slidesText='';
   const dpr = window.devicePixelRatio||1;
   const W = Math.min(screen.width*dpr, 3840), H = Math.min(screen.height*dpr, 2160);
   for(let i=1;i<=pdf.numPages;i++){
@@ -344,12 +399,13 @@ async function loadPdf(buf, name){
     const c = document.createElement('canvas'); c.width=Math.floor(vp.width); c.height=Math.floor(vp.height);
     const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
     await page.render({canvasContext:ctx, viewport:vp}).promise;
+    try{ const tc=await page.getTextContent(); slidesText+=itemsText(tc.items)+'\n'; }catch(_){}
     const blob = await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));
     S.slides.push(URL.createObjectURL(blob));
     page.cleanup();
     $('pdfStatus').textContent=`슬라이드 준비 중… ${i} / ${pdf.numPages}`;
   }
-  S.pdfName=name;
+  S.pdfName=name; S.slidesText=slidesText; Terms.rebuild();
   if(S.page>S.slides.length) S.page=1;
   $('pdfStatus').innerHTML=`✅ <b>${esc(name)}</b> — ${S.slides.length}장 준비 완료`;
   $('thumb').src=S.slides[0]; $('thumb').hidden=false;
@@ -368,6 +424,223 @@ $('pdfFile').onchange=e=>onPdfFile(e.target.files[0]);
 $('drop').ondragover=e=>{e.preventDefault();$('drop').classList.add('over');};
 $('drop').ondragleave=()=>$('drop').classList.remove('over');
 $('drop').ondrop=e=>{e.preventDefault();$('drop').classList.remove('over');onPdfFile(e.dataTransfer.files[0]);};
+
+/* =========================================================
+   용어집·참고자료 — 잘못 들린 말 자동 교정 (기기 안에서만 처리)
+   ========================================================= */
+const CHO='ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ', JUNG='ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ', JONG=' ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ';
+function jamo(s){ let o=''; for(const ch of s){ const c=ch.charCodeAt(0)-0xAC00; if(c>=0&&c<11172){ o+=CHO[Math.floor(c/588)]+JUNG[Math.floor((c%588)/28)]+(c%28?JONG[c%28]:''); } else o+=ch.toLowerCase(); } return o; }
+function lev(a,b,max){
+  if(Math.abs(a.length-b.length)>max) return max+1;
+  let prev=Array.from({length:b.length+1},(_,i)=>i);
+  for(let i=1;i<=a.length;i++){
+    const cur=[i]; let best=i;
+    for(let j=1;j<=b.length;j++){ cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1)); if(cur[j]<best) best=cur[j]; }
+    if(best>max) return max+1; prev=cur;
+  }
+  return prev[b.length];
+}
+const PARTICLES=['에서는','에서도','으로는','으로도','에게서','이라는','까지는','부터는','에서의','에서','에게','으로','까지','부터','처럼','보다','이나','이며','라는','에는','에도','과는','와는','은','는','이','가','을','를','의','에','로','와','과','도','만'].sort((a,b)=>b.length-a.length);
+function hasBatchim(ch){ const c=(ch||'').charCodeAt(0)-0xAC00; return c>=0&&c<11172&&c%28!==0; }
+function fixP(form,p){ // 바뀐 낱말에 맞게 조사 고치기 (을/를, 은/는, 이/가, 과/와)
+  if(!p) return p; const b=hasBatchim(form[form.length-1]);
+  const m={'을':['을','를'],'를':['을','를'],'은':['은','는'],'는':['은','는'],'이':['이','가'],'가':['이','가'],'과':['과','와'],'와':['과','와']}[p];
+  return m ? (b?m[0]:m[1]) : p;
+}
+function stripP(w){ for(const p of PARTICLES) if(w.length>p.length+1 && w.endsWith(p)) return [w.slice(0,-p.length),p]; return [w,'']; }
+const VERBISH=/(다|요|고|며|서|게|지|는|던|면|까|죠|니|된|될|한|할|했|함|됨|겠|습|었|았)$/;
+const STOP=new Set('그리고 그러나 하지만 또한 이번 이후 이전 우리 저희 여러분 정도 경우 이상 이하 관련 대한 위한 통해 따라 등의 있음 없음 사항 내용 부분 현재 향후 추진 계획 기준 대상 방안 필요 가능 진행'.split(' '));
+// 자동 교정 대상: 기관·지역·사업 이름처럼 끝나는 말 (일반 낱말은 건드리지 않음)
+const PROPER=/(시|청|도|군|구|읍|면|동|부|처|원|단|팀|과|국|실|센터|공사|공단|재단|위원회|협회|제도|사업|정책|계획|구역|지구|단지|플랫폼|시스템)$/;
+function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+function looseRe(from){
+  const body=/[가-힣]/.test(from) ? [...from.replace(/\s+/g,'')].map(escRe).join('\\s*') : escRe(from).replace(/\\?\s+/g,'\\s+');
+  return new RegExp(/^[A-Za-z0-9]/.test(from)?'\\b'+body+'\\b':body, /[A-Za-z]/.test(from)?'gi':'g');
+}
+const isKo=s=>/[가-힣]/.test(s);
+
+const Terms = {
+  sources:[],             // [{name, text}]
+  vocab:new Map(),        // 띄어쓰기 없는 키 → {form, n, j}
+  fixes:[], pairs:[],
+  load(){
+    try{ const t=JSON.parse(localStorage.getItem('pcap.terms.v1')||'null'); if(t&&t.sources) this.sources=t.sources; }catch(_){}
+    this.rebuild();
+  },
+  save(){ try{ localStorage.setItem('pcap.terms.v1', JSON.stringify({sources:this.sources})); }catch(e){ console.warn('참고자료 저장 실패(용량)',e); toast?.('참고자료가 너무 커서 일부만 저장됩니다',3000); } },
+  setSource(name,text){ text=(text||'').slice(0,400000); this.sources=this.sources.filter(x=>x.name!==name); this.sources.push({name,text}); this.rebuild(); this.save(); },
+  removeSource(name){ this.sources=this.sources.filter(x=>x.name!==name); this.rebuild(); this.save(); },
+  inc(key,form,w=1){ const v=this.vocab.get(key); if(v) v.n+=w; else this.vocab.set(key,{form,n:w}); },
+  addText(text,w=1){
+    let prev=null;
+    for(const raw of (text.match(/[가-힣A-Za-z0-9]+/g)||[])){
+      if(!/^[가-힣]+$/.test(raw)){ prev=null; continue; }
+      const [core,p]=stripP(raw);
+      if(core.length<2||core.length>10||VERBISH.test(core)||STOP.has(core)){ prev=null; continue; }
+      this.inc(core,core,w);
+      if(prev && (prev+core).length<=12) this.inc(prev+core, prev+' '+core, w);
+      prev = p ? null : core;
+    }
+  },
+  parseGloss(txt){
+    this.fixes=[]; this.pairs=[];
+    for(let l of (txt||'').split('\n')){
+      l=l.trim(); if(!l||l.startsWith('#')) continue;
+      if(/→|->/.test(l)){ const [a,b]=l.split(/→|->/).map(x=>x.trim()); if(a&&b) this.fixes.push([a,b]); }
+      else if(l.includes('=')){ const i=l.indexOf('='); const a=l.slice(0,i).trim(), b=l.slice(i+1).trim(); if(a&&b) this.pairs.push(isKo(a)?[a,b]:[b,a]); }
+    }
+  },
+  rebuild(){
+    this.vocab=new Map();
+    for(const s of this.sources) this.addText(s.text);
+    if(S.slidesText) this.addText(S.slidesText);
+    this.parseGloss(S.glossary);
+    for(const [k,v] of this.vocab){
+      if(k.length<3){ this.vocab.delete(k); continue; }
+      // 참고자료에서 2번 이상 나온, 4글자 이상 낱말이거나 기관·사업 이름 꼴인 낱말만 '소리 비슷하면 고치기' 대상
+      v.fz = !v.form.includes(' ') && v.n>=2 && (k.length>=4 || PROPER.test(k));
+    }
+    const glo=t=>{ const k=t.replace(/\s+/g,''); this.inc(k,t,5); this.vocab.get(k).fz=true; };   // 용어집 낱말은 항상 교정 대상
+    for(const [,to] of this.fixes) if(isKo(to)) glo(to);
+    for(const [ko] of this.pairs) glo(ko);
+    for(const [k,v] of this.vocab){ if(k.length<3){ this.vocab.delete(k); continue; } v.j=jamo(k); }
+    if(typeof renderTerms==='function') renderTerms();
+  },
+  quick(text){ let s=text; for(const [a,b] of this.fixes) s=s.replace(looseRe(a),b); return s; },
+  // 소리가 비슷한 용어 찾기 (자모 단위 편집거리)
+  nearest(core){
+    const j=jamo(core), max=Math.floor(j.length*0.34); if(max<1) return null;
+    let best=null, bd=99;
+    for(const [k,v] of this.vocab){
+      if(!v.fz || v.j[0]!==j[0] || Math.abs(v.j.length-j.length)>max) continue;
+      if(k.includes(core)||core.includes(k)) continue;                                   // 더 긴/짧은 같은 용어는 그대로 둠
+      const fw=v.form.split(' ')[0]; if(v.form.includes(' ') && core.startsWith(fw)) continue;  // 앞 낱말은 맞고 뒤 낱말만 다르면 다른 말(원주시민 여러분)
+      if(k.length===core.length && k.slice(0,-1)===core.slice(0,-1)) continue;          // 끝 글자만 다름(시민↔시청)은 다른 낱말
+      const d=lev(j,v.j,max); if(d>max) continue;
+      if(d<bd || (d===bd && v.n>best.n)){ bd=d; best=v; }
+    }
+    return best;
+  },
+  fuzzy(text){
+    const toks=text.split(/\s+/).filter(Boolean), out=[]; let i=0;
+    while(i<toks.length){
+      let hit=null;
+      for(let n=Math.min(3,toks.length-i); n>=1 && !hit; n--){
+        const joined=toks.slice(i,i+n).join('');
+        if(!/^[가-힣]+$/.test(joined)) continue;
+        const [core,p]=stripP(joined);
+        if(core.length<3||core.length>12) continue;
+        const ex=this.vocab.get(core);
+        if(ex){ if(n>1) hit=[ex.form+fixP(ex.form,p),n]; continue; }
+        if(VERBISH.test(core)) continue;
+        if(n>1){ // 여러 낱말을 붙여 비교할 때: 중간 낱말에 조사가 있거나, 첫 낱말이 이미 아는 낱말이면 건너뜀 (노트북을 켜 ≠ 노트북용)
+          const mid=toks.slice(i,i+n-1);
+          if(mid.some(w=>stripP(w)[1]) || this.vocab.has(stripP(toks[i])[0])) continue;
+        }
+        const b=this.nearest(core); if(b) hit=[b.form+fixP(b.form,p),n];
+      }
+      if(hit){ out.push(hit[0]); i+=hit[1]; } else { out.push(toks[i]); i++; }
+    }
+    return out.join(' ');
+  },
+  correct(text,lang){
+    let s=this.quick(text);
+    if(lang==='ko' && S.autoFix && this.vocab.size) s=this.fuzzy(s);
+    return s;
+  },
+  // 용어집의 '바른 말 = 영어'를 번역 전에 XA·XB… 로 바꿔 두었다가 번역 뒤 정해진 표기로 되돌림
+  protect(text,lang){
+    const map=[]; let s=text;
+    const pairs=[...this.pairs].sort((a,b)=>(lang==='ko'?b[0].length-a[0].length:b[1].length-a[1].length));
+    for(const [ko,en] of pairs){
+      const from = lang==='ko'?ko:en, to = lang==='ko'?en:ko;
+      const re=looseRe(from); if(!re.test(s)) continue;
+      const ph='X'+String.fromCharCode(65+map.length); if(map.length>=20) break;
+      s=s.replace(looseRe(from),ph); map.push([ph,to]);
+    }
+    return {q:s,map};
+  },
+  restore(out,map,tgt){
+    let s=out;
+    for(const [ph,to] of map){
+      s=s.replace(new RegExp(ph+'(은|는|이|가|을|를|과|와)?','g'),(m,p)=>to+(p&&tgt==='ko'?fixP(to,p):(p||'')));
+    }
+    return s;
+  }
+};
+function renderTerms(){
+  $('refList').innerHTML=Terms.sources.map(x=>`<div class="src-row">📄 ${esc(x.name)} <span class="note" style="margin:0">(${Math.round(x.text.length/1000)}천 자)</span><button data-rm="${esc(x.name)}">✕</button></div>`).join('');
+  const list=[...Terms.vocab.values()].sort((a,b)=>b.n-a.n);
+  const nf=list.filter(v=>v.fz).length;
+  $('termInfo').textContent = list.length ? `자동 교정 대상 ${nf}개 / 추출 용어 ${list.length}개 (참고자료 ${Terms.sources.length}개${S.slidesText?' + 발표자료':''} + 용어집) — 많이 나온 순:` : '참고자료나 발표자료를 올리면 여기에 교정 기준 용어가 표시됩니다.';
+  $('termChips').innerHTML=list.filter(v=>v.fz).slice(0,40).map(v=>`<span class="chip">${esc(v.form)}</span>`).join('');
+  runFixTest();
+}
+function runFixTest(){
+  const t=$('fixIn').value.trim(); if(!t){ $('fixOut').textContent=''; return; }
+  const out=Terms.correct(t,'ko');
+  $('fixOut').innerHTML = out===t ? '바뀐 곳 없음' : '→ <b>'+esc(out)+'</b>';
+}
+function itemsText(items){
+  let t='';
+  for(const x of items){
+    const str=x.str||'';
+    if(str && t && !/\s$/.test(t) && !/^\s/.test(str) && str.length>1 && !/\n$/.test(t)) t+=' ';
+    t+=str; if(x.hasEOL) t+='\n';
+  }
+  return t;
+}
+async function pdfText(buf){
+  await pdfWorkerReady();
+  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf.slice(0))}).promise; let t='';
+  for(let i=1;i<=pdf.numPages;i++){ const pg=await pdf.getPage(i); const tc=await pg.getTextContent(); t+=itemsText(tc.items)+'\n'; pg.cleanup(); }
+  return t;
+}
+$('btnRef').onclick=()=>$('refFile').click();
+$('refFile').onchange=async e=>{
+  for(const f of e.target.files){
+    $('termInfo').textContent=`${f.name} 읽는 중…`;
+    try{ const text=/\.pdf$/i.test(f.name) ? await pdfText(await f.arrayBuffer()) : await f.text();
+      if(!text.trim()) toast(`${f.name}: 글자를 찾지 못했습니다 (스캔 이미지 PDF일 수 있음)`,4000);
+      Terms.setSource(f.name,text);
+    }catch(err){ console.error(err); $('termInfo').textContent=`${f.name} 읽기 실패: ${err.message}`; }
+  }
+  e.target.value='';
+};
+$('refList').addEventListener('click',e=>{ const n=e.target.dataset.rm; if(n!==undefined) Terms.removeSource(n); });
+let glossTimer;
+$('gloss').addEventListener('input',()=>{ S.glossary=$('gloss').value; clearTimeout(glossTimer); glossTimer=setTimeout(()=>{ Terms.rebuild(); saveSoon(); },400); });
+$('optAutoFix').onchange=()=>{ S.autoFix=$('optAutoFix').checked; runFixTest(); saveSoon(); };
+$('fixIn').addEventListener('input',runFixTest);
+$('btnGlossEx').onclick=()=>{
+  const ex=`# 틀리게 들린 말 → 바른 말  (자막을 고침)
+언제 시청 → 원주시청
+김영석 → 이명섭
+최애 반납 → QR 반납
+탄소 등록 → 탄소중립
+원두지 않게 → 원주시에
+# 바른 말 = 영어 표기  (번역에 그대로 사용)
+원주시청 = Wonju City Hall
+원주시 = Wonju City
+이명섭 = Lee Myeong-seop
+지속가능발전팀 = Sustainable Development Team
+탄소중립 = carbon neutrality
+강원특별자치도 = Gangwon Special Self-Governing Province`;
+  $('gloss').value = ($('gloss').value.trim()? $('gloss').value.trim()+'\n':'') + ex;
+  $('gloss').dispatchEvent(new Event('input'));
+};
+
+/* =========================================================
+   문장 나누기 — 쉬지 않고 말해도 문장 끝(~니다, ~요)에서 끊음
+   ========================================================= */
+const KO_END=/(습니다|습니까|니다|니까|세요|에요|예요|어요|아요|해요|지요|까요|네요|군요|래요|게요|거든요|잖아요|죠)([.?!]*)(?=\s|$)/g;
+function splitSentences(text,lang){
+  const done=[]; let last=0;
+  if(lang==='ko') text.replace(KO_END,(m,a,b,off)=>{ done.push(text.slice(last,off+m.length).trim()); last=off+m.length; return m; });
+  else text.replace(/[.?!](?=\s|$)/g,(m,off)=>{ done.push(text.slice(last,off+1).trim()); last=off+1; return m; });
+  return {done:done.filter(Boolean), rest:text.slice(last).trim()};
+}
+function punct(s,lang){ if(lang!=='ko'||/[.?!]$/.test(s)) return s; return s+(/(니까|까요)$/.test(s)?'?':'.'); }
 
 /* =========================================================
    번역 엔진 ①: 허깅페이스 모델 (Transformers.js, 이 기기 안에서 실행)
@@ -465,9 +738,9 @@ const Tr = {
     this.creating=Promise.all([mk('ko','en'),mk('en','ko')]).then(()=>{ this.creating=null; refreshTrStatus(); });
   },
   ready(s,t){ return this.engine()==='chrome' ? !!this.pairs[s+t] : HF.state[s+t]==='ready'; },
-  async translate(text,s,t){
+  async translate(text,s,t,force){
     if(!text) return null;
-    const eng=this.engine();
+    const eng=force||this.engine();
     if(eng==='chrome' && !this.pairs[s+t]) return null;
     if(eng==='hf' && HF.state[s+t]==='none') return null;
     this.busy=true;
@@ -502,6 +775,35 @@ async function refreshTrStatus(){
   }catch(e){ setTrStatus('번역 상태 확인 실패: '+e.message,'bad'); }
 }
 $('btnTrLoad').onclick=()=>{ readSetup(); Tr.ensure(); };
+
+/* ---------- 번역 비교 ---------- */
+const within=(p,ms)=>Promise.race([p,new Promise(r=>setTimeout(r,ms))]);   // 오래 걸리면 기다리지 않고 넘어감
+$('btnCmp').onclick=async()=>{
+  readSetup();
+  const text=$('cmpIn').value.trim(); if(!text){ $('cmpOut').innerHTML='<p class="note">비교할 문장을 입력하세요.</p>'; return; }
+  const s=S.lang, t=other(s), key=s+t;
+  // 크롬 내장 준비 (버튼 클릭 = 사용자 동작)
+  const saveEng=S.trEngine;
+  if(Tr.chromeOK && !Tr.pairs[key]){ S.trEngine='chrome'; Tr.ensure(); S.trEngine=saveEng; }
+  const fixed=punct(Terms.correct(text,s),s);
+  const rows=[['입력'+(fixed!==text?' → 자동 교정':''), fixed, '']];
+  const draw=()=>{ $('cmpOut').innerHTML='<div class="cmp">'+rows.map(r=>`<div><span class="eng">${esc(r[0])}</span><span>${esc(r[1])}</span><span class="ms">${r[2]}</span></div>`).join('')+'</div>'; };
+  const run=async(label,eng)=>{
+    const i=rows.push([label,'번역 중…',''])-1; draw();
+    const {q,map}=Terms.protect(fixed,s); const t0=performance.now();
+    let out=null; try{ out=await Tr.translate(q,s,t,eng); }catch(_){}
+    rows[i][1]= out ? Terms.restore(out,map,t) : '(번역 실패)'; rows[i][2]=out?((performance.now()-t0)/1000).toFixed(1)+'초':''; draw();
+  };
+  draw();
+  if(Tr.chromeOK){ if(Tr.creating) await within(Tr.creating,8000); if(Tr.pairs[key]) await run('크롬 내장','chrome'); else rows.push(['크롬 내장', Tr.creating?'준비 중 (번역 모델 내려받는 중일 수 있음) — 잠시 뒤 [비교]를 다시 누르세요':'사용할 수 없음 (번역 상태 줄 확인)','']); }
+  else rows.push(['크롬 내장','이 기기에는 없음 (PC 크롬 전용)','']);
+  draw();
+  const m=HF.models[key];
+  if(HF.state[key]==='ready') await run(`허깅페이스 (${s==='ko'?'opus':'NLLB'})`,'hf');
+  else { rows.push([`허깅페이스 (${s==='ko'?'opus':'NLLB'})`, `모델을 먼저 내려받아야 비교됩니다 (${m.size}) — 번역 엔진을 '허깅페이스'로 고른 뒤 [내려받기]`, '']); draw(); }
+  if(Terms.pairs.length) { rows.push(['', '※ 용어집의 "바른 말 = 영어"가 번역에 적용되었습니다', '']); draw(); }
+};
+$('cmpIn').addEventListener('keydown',e=>{ if(e.key==='Enter') $('btnCmp').click(); });
 document.querySelectorAll('input[name=tre]').forEach(r=>r.onchange=()=>{ S.trEngine=r.value; refreshTrStatus(); saveSoon(); });
 
 /* =========================================================
@@ -547,6 +849,8 @@ const Speech = {
     this.rec=r;
     try{ r.start(); }catch(e){ console.warn(e); }
   },
+  // 말이 너무 길게 이어질 때 지금까지를 강제로 확정시키고 바로 다시 듣기
+  flush(){ if(!this.rec||this.flushing) return; this.flushing=true; this.backoff=0; try{ this.rec.stop(); }catch(_){} setTimeout(()=>{ this.flushing=false; },1500); },
   stop(){ this.want=false; this.gen++; if(this.rec){ try{ this.rec.abort(); }catch(_){} this.rec=null; } this.handlers.state('off'); }
 };
 
@@ -557,7 +861,7 @@ async function maybeTranslateInterim(src, apply){
   if(!S.translate||Tr.engine()!=='chrome'||!Tr.ready(s,t)||Tr.busy) return;
   if(src.length<6||Date.now()-lastInterimTr<1000) return;
   lastInterimTr=Date.now(); const my=++interimSeq;
-  const out=await Tr.translate(src,s,t);
+  const out=await trTerms(src,s,t);
   if(my===interimSeq&&out) apply(out);
 }
 
@@ -580,8 +884,11 @@ $('btnTest').onclick=()=>{
     state(st){ if(st==='off'&&testing) {} },
     interim(t){ renderTest(t); interimSeq++; },
     async final(t){
-      const line={src:t,tgt:''}; testLines.push(line); renderTest('');
-      if(S.translate){ const out=await Tr.translate(t,S.lang,other(S.lang)); if(out){ line.tgt=out; renderTest(''); } }
+      const {done,rest}=splitSentences(t,S.lang);
+      for(const x of rest?done.concat([rest]):done){
+        const line={src:punct(Terms.correct(x,S.lang),S.lang),tgt:''}; testLines.push(line); renderTest('');
+        if(S.translate){ const t0=performance.now(); const out=await trTerms(line.src,S.lang,other(S.lang)); if(out){ line.tgt=out+`  (${((performance.now()-t0)/1000).toFixed(1)}초)`; renderTest(''); } }
+      }
     }
   };
   renderTest('');
@@ -612,6 +919,7 @@ function startPresent(){
   applyCapSize();
   showPage();
   renderCap();
+  utt={committed:0};
   Speech.handlers = { state:setDot, interim:onInterim, final:onFinal };
   Speech.start(S.lang);
   toast(`${LANGS[S.lang].name} 발표 · 자막 시작 (L: 언어 전환, Esc: 종료)`, 3500);
@@ -630,24 +938,55 @@ function showPage(){
 function go(d){ if(!S.slides.length) return; const p=S.page+d; if(p<1||p>S.slides.length) return; S.page=p; showPage(); saveSoon(); }
 function setDot(st){ $('dot').className = st==='on'?'on':st==='err'?'err':''; }
 
+let utt={committed:0};   // 지금 말하는 덩어리에서 이미 확정한 문장 수
 function onInterim(t){
   if(!S.presenting) return;
   if(!t){ S.interim=null; renderCap(); return; }
-  const prev = S.interim;
-  S.interim={src:t, tgt: prev?prev.tgt:''};
+  const {done,rest}=splitSentences(t,S.lang);
+  // 다음 말이 이어지면 앞 문장은 끝난 것 → 바로 확정·번역
+  const ready = rest ? done.length : Math.max(0,done.length-1);
+  while(utt.committed<ready){ commitSentence(done[utt.committed]); utt.committed++; }
+  const shown=done.slice(utt.committed).concat(rest?[rest]:[]).join(' ');
+  if(!shown){ S.interim=null; renderCap(); return; }
+  const prev=S.interim;
+  S.interim={src:Terms.quick(shown), tgt:prev?prev.tgt:''};
   renderCap();
-  maybeTranslateInterim(t, out=>{ if(S.interim&&S.interim.src===t){ S.interim.tgt=out; renderCap(); } });
+  maybeTranslateInterim(S.interim.src, out=>{ if(S.interim&&S.interim.src===Terms.quick(shown)){ S.interim.tgt=out; renderCap(); } });
+  // 문장 끝이 없는 말이 너무 길면 강제 확정 (한국어 70자 / 영어 28단어)
+  const tooLong = S.lang==='ko' ? shown.replace(/\s/g,'').length>70 : shown.split(/\s+/).length>28;
+  if(tooLong) Speech.flush();
 }
-async function onFinal(t){
+function onFinal(t){
   if(!S.presenting) return;
   S.interim=null; interimSeq++;
-  const e={id:Date.now()+Math.random(), time:new Date().toISOString(), slide:S.slides.length?S.page:0, lang:S.lang, src:t, tgt:'', imp:false};
+  const {done,rest}=splitSentences(t,S.lang);
+  const all=rest?done.concat([rest]):done;
+  if(all.length>utt.committed) all.slice(utt.committed).forEach(commitSentence);
+  else if(all.length){ // 최종 결과가 다르게 나뉜 경우: 마지막 문장이 이미 확정된 것과 다르면 추가
+    const lastF=all[all.length-1], lastC=S.entries[S.entries.length-1];
+    if(!lastC || lev(jamo(lastF),jamo(lastC.raw||lastC.src),99) > jamo(lastF).length*0.4) commitSentence(lastF);
+  }
+  utt={committed:0};
+  renderCap();
+}
+function commitSentence(raw){
+  raw=(raw||'').trim(); if(!raw) return;
+  const lang=S.lang, fixed=Terms.correct(raw,lang);
+  const e={id:Date.now()+Math.random(), time:new Date().toISOString(), slide:S.slides.length?S.page:0, lang, src:punct(fixed,lang), tgt:'', imp:false, trMs:null};
+  if(fixed!==raw) e.raw=raw;
   if(pendingImp){ e.imp=true; pendingImp=false; }
   S.entries.push(e); renderCap(); saveSoon();
-  if(S.translate){
-    const out = await Tr.translate(t, e.lang, other(e.lang));
-    if(out){ e.tgt=out; renderCap(); saveSoon(); }
-  }
+  if(S.translate) translateEntry(e);
+}
+async function trTerms(text,s,t){
+  const {q,map}=Terms.protect(text,s);
+  const out=await Tr.translate(q,s,t);
+  return out ? Terms.restore(out,map,t) : null;
+}
+async function translateEntry(e){
+  const t0=performance.now();
+  const out=await trTerms(e.src, e.lang, other(e.lang));
+  if(out){ e.tgt=out; e.trMs=Math.round(performance.now()-t0); renderCap(); saveSoon(); }
 }
 function renderCap(){
   const N=3;
@@ -684,7 +1023,7 @@ function markImportant(){
   toast(e.imp?'★ 중요 표시':'중요 표시 해제',1500);
 }
 function switchLang(){
-  S.lang=other(S.lang); S.interim=null;
+  S.lang=other(S.lang); S.interim=null; utt={committed:0};
   Speech.start(S.lang); if(S.translate) Tr.ensure(); renderCap(); saveSoon();
   toast(`발표 언어: ${LANGS[S.lang].name} → 자막 ${LANGS[other(S.lang)].name} 번역`,2500);
 }
@@ -752,6 +1091,7 @@ function openMinutes(){
 }));
 function hhmmss(iso){ const d=new Date(iso); return d.toTimeString().slice(0,8); }
 function renderMinutes(){
+  renderSummary();
   const list=$('mList');
   $('mCount').textContent=`총 ${S.entries.length}문장 · 중요 ${S.entries.filter(e=>e.imp).length}개`;
   if(!S.entries.length){ list.innerHTML='<p class="note">아직 기록이 없습니다.</p>'; return; }
@@ -766,7 +1106,7 @@ function renderMinutes(){
 }
 $('mList').addEventListener('input', e=>{
   const row=e.target.closest('.mrow'); if(!row||!e.target.dataset.f) return;
-  S.entries[+row.dataset.i][e.target.dataset.f]=e.target.value; saveSoon();
+  S.entries[+row.dataset.i][e.target.dataset.f]=e.target.value; saveSoon(); renderSummary();
 });
 $('mList').addEventListener('click', e=>{
   const act=e.target.dataset.act; if(!act) return;
@@ -781,28 +1121,111 @@ function buildTxt(){
   L.push('회의록 (발표 통역 자막 도우미)','');
   L.push('일시: '+metaDate(), '장소: '+S.meta.place, '기관: '+S.meta.org, '참석자: '+S.meta.people);
   L.push('자료: '+(S.pdfName||'-'), '기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
-  L.push('','============================================================','');
+  L.push(speedLine());
+  L.push('','==================== 요약 정보 ====================','');
+  buildSummaryLines().forEach(x=>L.push(x));
+  L.push('','==================== 전체 기록 ====================','');
   S.entries.forEach(e=>{
-    L.push(`[${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}]${e.imp?' ★중요':''}`);
+    L.push(`[${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}]${e.imp?' ★중요':''}${e.trMs!=null?` (번역 ${(e.trMs/1000).toFixed(1)}초)`:''}`);
     L.push(`원문(${LANGS[e.lang].tag}): ${e.src}`);
+    if(e.raw) L.push(`  ※ 자동 교정 전: ${e.raw}`);
     if(e.tgt) L.push(`번역(${LANGS[other(e.lang)].tag}): ${e.tgt}`);
     L.push('');
   });
+  L.push('※ 이 파일을 Claude에 올리고 "이 회의록으로 국외출장 결과보고서 초안을 써 줘"라고 요청하면 보고서 초안을 만들 수 있습니다.');
   return L.join('\r\n');
+}
+/* ---------- 회의록 요약 (규칙 기반, 기기 안에서 계산) ---------- */
+const Q_RE_EN=/^(do|does|did|can|could|would|will|is|are|was|were|what|how|why|when|where|who|which|have|has|should|may)\b/i;
+function isQuestion(e){ return /\?\s*$/.test(e.src) || (e.lang==='en' && Q_RE_EN.test(e.src.trim())) || /질문|궁금/.test(e.src); }
+function koText(e){ return e.lang==='ko' ? e.src : (e.tgt||e.src); }   // 요약은 한국어 기준
+function keywords(n=10){
+  const cnt=new Map(), glo=new Set([...Terms.pairs.map(x=>x[0]), ...Terms.fixes.map(x=>x[1])].map(x=>x.replace(/\s+/g,'')));
+  for(const e of S.entries){
+    for(const raw of (koText(e).match(/[가-힣A-Za-z0-9]+/g)||[])){
+      if(/^[A-Z][A-Za-z0-9]{1,}$/.test(raw) && raw.length<=12){ cnt.set(raw,(cnt.get(raw)||0)+1); continue; }
+      if(!/^[가-힣]+$/.test(raw)) continue;
+      const [w]=stripP(raw); if(w.length<2||VERBISH.test(w)||STOP.has(w)) continue;
+      cnt.set(w,(cnt.get(w)||0)+(glo.has(w)||Terms.vocab.has(w)?2:1));
+    }
+  }
+  return [...cnt].filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([w,c])=>`${w}(${c})`);
+}
+function buildSummaryLines(){
+  const E=S.entries; if(!E.length) return ['기록이 없습니다.'];
+  const L=[], t0=new Date(E[0].time), t1=new Date(E[E.length-1].time);
+  const mins=Math.max(1,Math.round((t1-t0)/60000));
+  const nko=E.filter(e=>e.lang==='ko').length, nen=E.length-nko;
+  const slides=[...new Set(E.map(e=>e.slide).filter(Boolean))];
+  L.push('■ 개요');
+  L.push(`- 진행: ${hhmmss(E[0].time).slice(0,5)} ~ ${hhmmss(E[E.length-1].time).slice(0,5)} (약 ${mins}분), 기록 ${E.length}문장 (한국어 발언 ${nko} · 영어 발언 ${nen})`);
+  if(slides.length) L.push(`- 다룬 슬라이드: ${slides.length}장 (${Math.min(...slides)}~${Math.max(...slides)}번)`);
+  const kw=keywords(); if(kw.length) L.push(`- 핵심어(나온 횟수): ${kw.join(', ')}`);
+  if(S.aiSummary){ L.push('','■ AI 핵심 요약 (크롬 내장 AI, 검토 필요)'); S.aiSummary.split('\n').filter(x=>x.trim()).forEach(x=>L.push(x.startsWith('-')?x:'- '+x)); }
+  const imp=E.filter(e=>e.imp);
+  if(imp.length){ L.push('',`■ 중요 표시 (${imp.length})`); imp.forEach(e=>L.push(`- [슬라이드 ${e.slide||'-'}] ${koText(e)}`)); }
+  if(slides.length){
+    L.push('','■ 슬라이드별 주요 발언');
+    for(const sl of slides.sort((a,b)=>a-b)){
+      const es=E.filter(e=>e.slide===sl);
+      const pick=es.find(e=>e.imp) || [...es].sort((a,b)=>koText(b).length-koText(a).length)[0];
+      L.push(`- ${sl}번 (${es.length}문장): ${koText(pick)}`);
+    }
+  }
+  const qs=E.filter(isQuestion);
+  if(qs.length){ L.push('',`■ 질문·요청 (${qs.length})`); qs.forEach(e=>L.push(`- [${hhmmss(e.time).slice(0,5)}] ${e.src}${e.lang==='en'&&e.tgt?' / '+e.tgt:''}`)); }
+  L.push('','■ 기록 품질');
+  L.push('- '+speedLine().replace('번역 속도: ','번역 속도 '));
+  const fx=E.filter(e=>e.raw).length; if(fx) L.push(`- 자동 교정 ${fx}문장 (각 문장 아래 '교정 전' 확인)`);
+  const nt=S.translate?E.filter(e=>!e.tgt).length:0; if(nt) L.push(`- 번역 없는 문장 ${nt}개`);
+  return L;
+}
+function renderSummary(){ $('sumBox').textContent=buildSummaryLines().join('\n'); }
+
+/* ---------- AI 핵심 요약 (크롬 내장 Summarizer, PC 전용) ---------- */
+$('btnAiSum').onclick=async()=>{
+  const st=$('aiSumStatus');
+  if(!('Summarizer' in self)){ st.textContent='❌ 이 기기·브라우저에는 크롬 내장 AI 요약이 없습니다 (PC 크롬, 고사양 필요). 대신 저장한 회의록을 Claude에 올려 요약을 요청하세요.'; return; }
+  if(!S.entries.length){ st.textContent='기록이 없습니다.'; return; }
+  // 영어 쪽 글을 요약 → 한국어로 번역 (한국어 직접 요약은 지원되지 않을 수 있음)
+  const enText=S.entries.map(e=>e.lang==='en'?e.src:(e.tgt||'')).filter(Boolean).join('\n');
+  if(enText.length<200){ st.textContent='요약할 내용이 너무 짧습니다 (번역 문장이 더 필요합니다).'; return; }
+  try{
+    st.textContent='AI 요약 준비 중… (처음에는 모델 내려받기로 몇 분 걸릴 수 있음)';
+    const sm=await Summarizer.create({type:'key-points',format:'plain-text',length:'medium',
+      sharedContext:'Transcript of a meeting between Wonju City (Korea) officials and a host organization abroad.',
+      expectedInputLanguages:['en'], outputLanguage:'en',
+      monitor(m){ m.addEventListener('downloadprogress',e=>st.textContent=`AI 요약 모델 내려받는 중… ${Math.round(e.loaded*100)}%`); }});
+    st.textContent='요약 중…';
+    const chunks=[]; for(let i=0;i<enText.length;i+=6000) chunks.push(enText.slice(i,i+6000));
+    let parts=[]; for(const c of chunks) parts.push(await sm.summarize(c));
+    let en = parts.length>1 ? await sm.summarize(parts.join('\n')) : parts[0];
+    const lines=en.split('\n').map(x=>x.replace(/^[\s*•\-]+/,'').trim()).filter(Boolean);
+    let ko=lines;
+    if(Tr.chromeOK){ try{ if(!Tr.pairs.enko){ const sv=S.trEngine; S.trEngine='chrome'; Tr.ensure(); S.trEngine=sv; await within(Tr.creating,15000); }
+      if(Tr.pairs.enko){ ko=[]; for(const x of lines) ko.push(await Tr.pairs.enko.translate(x)); } }catch(e){ console.warn(e); } }
+    S.aiSummary=ko.map(x=>'- '+x).join('\n'); saveSoon(); renderSummary();
+    st.textContent='✅ AI 요약을 요약 정보에 넣었습니다. 내용이 맞는지 꼭 확인하세요.';
+  }catch(e){ console.error(e); st.textContent='AI 요약 실패: '+e.message+' — 저장한 회의록을 Claude에 올려 요약을 요청하세요.'; }
+};
+
+function speedLine(){
+  const ms=S.entries.map(e=>e.trMs).filter(x=>x!=null); if(!ms.length) return '번역 속도: 기록 없음';
+  const avg=ms.reduce((a,b)=>a+b,0)/ms.length, over=ms.filter(x=>x>3000).length;
+  return `번역 속도: 평균 ${(avg/1000).toFixed(1)}초, 최대 ${(Math.max(...ms)/1000).toFixed(1)}초, 3초 초과 ${over}문장 / ${ms.length}문장`;
 }
 function buildMd(){
   const cell=s=>(s||'').replace(/\|/g,'\\|').replace(/\n/g,' ');
   const L=[];
   L.push('# 회의록','');
   L.push('| 항목 | 내용 |','|---|---|');
+  L.push(`| 번역 속도 | ${cell(speedLine().replace('번역 속도: ',''))} |`);
   L.push(`| 일시 | ${cell(metaDate())} |`,`| 장소 | ${cell(S.meta.place)} |`,`| 기관 | ${cell(S.meta.org)} |`,`| 참석자 | ${cell(S.meta.people)} |`,`| 자료 | ${cell(S.pdfName||'-')} |`);
-  const imp=S.entries.filter(e=>e.imp);
-  if(imp.length){
-    L.push('','## ★ 중요 표시 문장','');
-    imp.forEach(e=>L.push(`- [${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}] ${cell(e.src)}${e.tgt?' / '+cell(e.tgt):''}`));
-  }
-  L.push('','## 전체 기록','','| 시각 | 슬라이드 | 중요 | 원문 | 번역 |','|---|---|---|---|---|');
-  S.entries.forEach(e=>L.push(`| ${hhmmss(e.time)} | ${e.slide||'-'} | ${e.imp?'★':''} | ${cell(e.src)} | ${cell(e.tgt)} |`));
+  L.push('','## 요약 정보','');
+  buildSummaryLines().forEach(x=>{ if(!x) return; if(x.startsWith('■ ')) L.push('','### '+x.slice(2)); else L.push(x); });
+  L.push('','> 이 파일을 Claude에 올리고 "이 회의록으로 국외출장 결과보고서 초안을 써 줘"라고 요청하면 보고서 초안을 만들 수 있습니다.');
+  L.push('','## 전체 기록','','| 시각 | 슬라이드 | 중요 | 원문 | 번역 | 번역(초) |','|---|---|---|---|---|---|');
+  S.entries.forEach(e=>L.push(`| ${hhmmss(e.time)} | ${e.slide||'-'} | ${e.imp?'★':''} | ${cell(e.src)}${e.raw?' <br><sub>교정 전: '+cell(e.raw)+'</sub>':''} | ${cell(e.tgt)} | ${e.trMs!=null?(e.trMs/1000).toFixed(1):''} |`));
   return L.join('\n');
 }
 function fileBase(){
@@ -823,7 +1246,7 @@ $('btnBack').onclick=startPresent;
 $('btnSetup').onclick=()=>{ show('setup'); refreshTrStatus(); };
 $('btnNew').onclick=()=>{
   if(!confirm('지금 기록을 지우고 새 회의를 시작할까요?\n(먼저 .txt/.md로 저장했는지 확인하세요)')) return;
-  S.entries=[]; S.meta={date:nowLocal(),place:'',org:'',people:''}; S.page=1; syncSetupMeta(); saveNow();
+  S.entries=[]; S.aiSummary=''; S.meta={date:nowLocal(),place:'',org:'',people:''}; S.page=1; syncSetupMeta(); saveNow();
   show('setup');
 };
 
@@ -838,6 +1261,7 @@ function syncSetupOptions(){
   document.querySelector(`input[name=lang][value=${S.lang}]`).checked=true;
   $('optTranslate').checked=S.translate; $('optReserve').checked=S.reserve;
   const te=document.querySelector(`input[name=tre][value=${S.trEngine||'auto'}]`); if(te) te.checked=true;
+  $('gloss').value=S.glossary||''; $('optAutoFix').checked=S.autoFix!==false; Terms.rebuild();
 }
 document.querySelectorAll('input[name=lang]').forEach(r=>r.onchange=()=>{ S.lang=r.value; refreshTrStatus(); });
 $('btnStart').onclick=startPresent;
@@ -852,12 +1276,14 @@ $('btnGoMinutes').onclick=()=>{ readSetup(); openMinutes(); };
 
   $('mDate').value=nowLocal();
   const saved=loadSaved();
+  if(saved){ S.glossary=saved.glossary||''; S.autoFix=saved.autoFix!==false; $('gloss').value=S.glossary; $('optAutoFix').checked=S.autoFix; }
+  Terms.load();
   if(saved && (saved.entries?.length || saved.pdfName)){
     const when=new Date(saved.savedAt).toLocaleString('ko-KR');
     $('restoreInfo').innerHTML=`${esc(saved.meta?.org||'(기관 미입력)')} · 기록 ${saved.entries?.length||0}문장 · 자료 ${esc(saved.pdfName||'없음')} · 마지막 저장 ${when}`;
     $('restore').hidden=false;
     const apply=async()=>{
-      Object.assign(S,{lang:saved.lang||'ko',translate:saved.translate!==false,trEngine:saved.trEngine||'auto',reserve:saved.reserve!==false,meta:saved.meta||S.meta,entries:saved.entries||[],page:saved.page||1,capSize:saved.capSize||26});
+      Object.assign(S,{lang:saved.lang||'ko',translate:saved.translate!==false,trEngine:saved.trEngine||'auto',glossary:saved.glossary||'',autoFix:saved.autoFix!==false,reserve:saved.reserve!==false,meta:saved.meta||S.meta,entries:saved.entries||[],aiSummary:saved.aiSummary||'',page:saved.page||1,capSize:saved.capSize||26});
       syncSetupMeta(); syncSetupOptions(); refreshTrStatus();
       const f=await idbGet('pdf'); if(f&&f.data){ const pg=S.page; await loadPdf(f.data,f.name); S.page=pg; }
       $('restore').hidden=true;
@@ -866,7 +1292,7 @@ $('btnGoMinutes').onclick=()=>{ readSetup(); openMinutes(); };
     $('btnRestoreMinutes').onclick=async()=>{ await apply(); openMinutes(); };
     $('btnDiscard').onclick=async()=>{
       if(!confirm('저장된 기록과 PDF를 지울까요? (먼저 회의록을 저장했는지 확인하세요)')) return;
-      try{ localStorage.removeItem(LS_KEY); }catch(_){}
+      try{ localStorage.removeItem(LS_KEY); saveNow(); }catch(_){}
       await idbDel('pdf'); $('restore').hidden=true;
     };
   }
