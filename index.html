@@ -78,6 +78,10 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
 #dot.on{background:#2ecc71} #dot.err{background:#e53935}
 #toast{position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);background:rgba(20,20,20,.92);color:#fff;padding:12px 20px;border-radius:10px;font-size:18px;max-width:80vw;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none}
 #toast.show{opacity:1}
+#pageNo{cursor:pointer}
+#menu{position:absolute;right:1.2vw;bottom:calc(1.5vh + 52px);display:flex;flex-direction:column;gap:6px;background:rgba(20,20,20,.92);padding:10px;border-radius:12px}
+#menu button{background:#2b2f36;color:#fff;border:1px solid #444;font-size:18px;padding:10px 16px;text-align:left;min-width:190px}
+#menu button.end{background:#8b1e1e;border-color:#b33}
 
 /* ---------- 3. 회의록 화면 ---------- */
 #minutes{min-height:100%;padding:24px 16px 60px}
@@ -176,6 +180,7 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
     <div><kbd>L</kbd> 발표 언어 전환(한↔영)</div>
     <div><kbd>M</kbd> 방금 문장 '중요' 표시</div>
     <div><kbd>Esc</kbd> 발표 종료 → 회의록</div>
+    <div>📱 태블릿: 화면 오른쪽 터치=다음, 왼쪽 ⅓=이전, 오른쪽 아래 페이지 번호 터치=메뉴</div>
    </div>
    <p class="note">기록은 말할 때마다 이 노트북 크롬에 자동 저장됩니다. 창이 꺼져도 다시 열면 이어서 할 수 있습니다.</p>
   </div>
@@ -186,7 +191,16 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
 <section id="present" hidden>
  <div id="stage"><img id="slide" alt="" hidden><div id="noslide" hidden>슬라이드 없음 (자막만 표시)</div></div>
  <div id="cap" class="empty"></div>
- <div id="pageNo"><span id="dot"></span><span id="pageTxt">–</span></div>
+ <div id="pageNo" title="메뉴"><span id="dot"></span><span id="pageTxt">–</span><span style="opacity:.7">☰</span></div>
+ <div id="menu" hidden>
+  <button data-m="full">⛶ 전체 화면</button>
+  <button data-m="cap">💬 자막 숨기기/보이기</button>
+  <button data-m="big">＋ 자막 크게</button>
+  <button data-m="small">－ 자막 작게</button>
+  <button data-m="lang">🔁 발표 언어 전환</button>
+  <button data-m="imp">★ 방금 문장 중요</button>
+  <button data-m="end" class="end">■ 발표 종료 → 회의록</button>
+ </div>
  <div id="toast"></div>
 </section>
 
@@ -279,12 +293,32 @@ setInterval(()=>{ if(S.presenting) saveNow(); }, 10000);
 /* =========================================================
    PDF → 슬라이드 이미지 (한 번 그려 두면 인터넷이 끊겨도 유지)
    ========================================================= */
-if (window.pdfjsLib) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const PDF_WORKER_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let pdfWorkerP=null;
+// 사파리(아이패드) 등은 다른 주소의 워커를 바로 못 띄우므로
+// ① 워커 코드를 받아 같은 주소(blob)로 실행 → ② 실패하면 화면 안에서 직접 실행
+function pdfWorkerReady(){
+  if(pdfWorkerP) return pdfWorkerP;
+  pdfWorkerP=(async()=>{
+    try{
+      const r=await fetch(PDF_WORKER_URL); if(!r.ok) throw new Error('HTTP '+r.status);
+      const code=await r.text();
+      const url=URL.createObjectURL(new Blob([code],{type:'text/javascript'}));
+      await new Promise((res,rej)=>{ const w=new Worker(url); w.onerror=e=>{w.terminate();rej(e);}; setTimeout(()=>{w.terminate();res();},300); });
+      pdfjsLib.GlobalWorkerOptions.workerSrc=url; return 'worker';
+    }catch(e){
+      console.warn('워커 방식 실패 → 화면 내 처리로 전환', e);
+      await new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=PDF_WORKER_URL; sc.onload=res; sc.onerror=()=>rej(new Error('PDF 처리 부품을 내려받지 못했습니다. 인터넷 연결을 확인하세요.')); document.head.appendChild(sc); });
+      pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_WORKER_URL; return 'main';
+    }
+  })();
+  pdfWorkerP.catch(()=>{ pdfWorkerP=null; });
+  return pdfWorkerP;
 }
 async function loadPdf(buf, name){
   if(!window.pdfjsLib){ $('pdfStatus').textContent='PDF 프로그램을 불러오지 못했습니다. 인터넷 연결 후 새로고침(F5) 하세요.'; return; }
   $('pdfStatus').textContent='슬라이드 준비 중…';
+  await pdfWorkerReady();
   S.slides.forEach(u=>URL.revokeObjectURL(u)); S.slides=[];
   const pdf = await pdfjsLib.getDocument({data:new Uint8Array(buf.slice(0))}).promise;
   const dpr = window.devicePixelRatio||1;
@@ -349,7 +383,7 @@ const Tr = {
 };
 function setTrStatus(msg,cls){ const el=$('trStatus'); el.textContent=msg; el.className='status '+(cls||''); }
 async function refreshTrStatus(){
-  if(!Tr.supported){ setTrStatus('❌ 이 크롬에는 내장 번역 기능이 없습니다 (크롬 138 이상, PC용 필요). 원문 자막만 표시됩니다.','bad'); return; }
+  if(!Tr.supported){ setTrStatus('❌ 이 기기·브라우저에는 내장 번역 기능이 없습니다 (PC용 크롬 138 이상 필요 — 아이패드·휴대폰은 미지원). 원문 자막만 표시됩니다.','bad'); return; }
   const s=S.lang, t=other(s);
   if(Tr.ready(s,t)){ setTrStatus(`✅ ${LANGS[s].name} → ${LANGS[t].name} 번역 준비됨`,'ok'); return; }
   try{
@@ -464,7 +498,7 @@ function startPresent(){
   if(testing) stopTest();
   readSetup();
   if(S.translate) Tr.ensure();                         // 사용자 클릭 직후에 번역 준비
-  document.documentElement.requestFullscreen?.().catch(()=>{});
+  goFull();
   show('present');
   S.presenting=true;
   $('present').classList.toggle('reserve', S.reserve);
@@ -478,7 +512,7 @@ function startPresent(){
 }
 function endPresent(){
   S.presenting=false; Speech.stop(); S.interim=null;
-  if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  exitFull(); hideMenu();
   saveNow(); openMinutes();
 }
 function showPage(){
@@ -547,7 +581,7 @@ document.addEventListener('keydown', e=>{
   if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(k)){ e.preventDefault(); go(-1); return; }
   if(k==='Home'){ e.preventDefault(); S.page=1; showPage(); return; }
   if(k==='End'){ e.preventDefault(); S.page=S.slides.length||1; showPage(); return; }
-  if(c==='KeyF'){ e.preventDefault(); if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(()=>{}); return; }
+  if(c==='KeyF'){ e.preventDefault(); toggleFull(); return; }
   if(c==='KeyC'){ S.capHidden=!S.capHidden; renderCap(); toast(S.capHidden?'자막 숨김 (C: 다시 보이기)':'자막 표시',1500); return; }
   if(k==='+'||k==='='||c==='NumpadAdd'){ S.capSize=Math.min(54,S.capSize+2); applyCapSize(); saveSoon(); return; }
   if(k==='-'||k==='_'||c==='NumpadSubtract'){ S.capSize=Math.max(14,S.capSize-2); applyCapSize(); saveSoon(); return; }
@@ -556,15 +590,34 @@ document.addEventListener('keydown', e=>{
   if(k==='Escape'){ endPresent(); return; }
   if(k==='F5'){ e.preventDefault(); return; }  // 리모컨의 '슬라이드쇼' 버튼이 새로고침하지 않도록
 });
-document.addEventListener('fullscreenchange', ()=>{
-  if(S.presenting && !document.fullscreenElement)
-    toast('전체 화면 해제됨 · F: 다시 전체 화면 · Esc: 발표 종료', 4000);
-});
+function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement; }
+function goFull(){ const d=document.documentElement; try{ const p=(d.requestFullscreen||d.webkitRequestFullscreen)?.call(d); p?.catch?.(()=>{}); }catch(_){} }
+function exitFull(){ if(!fsEl()) return; try{ const p=(document.exitFullscreen||document.webkitExitFullscreen)?.call(document); p?.catch?.(()=>{}); }catch(_){} }
+function toggleFull(){ fsEl()?exitFull():goFull(); }
+['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev, ()=>{
+  if(S.presenting && !fsEl())
+    toast('전체 화면 해제됨 · F 또는 오른쪽 아래 메뉴로 다시 전체 화면', 4000);
+}));
 // 마우스: 2초 가만히 있으면 커서 숨김, 화면 왼쪽/오른쪽 클릭으로 넘김
 let curTimer;
 $('present').addEventListener('mousemove', ()=>{ $('present').classList.remove('nocursor'); clearTimeout(curTimer); curTimer=setTimeout(()=>$('present').classList.add('nocursor'),2000); });
-$('stage').addEventListener('click', e=>{ go(e.clientX < $('stage').clientWidth/3 ? -1 : 1); });
+$('stage').addEventListener('click', e=>{ if(!$('menu').hidden){ hideMenu(); return; } go(e.clientX < $('stage').clientWidth/3 ? -1 : 1); });
 
+// ---------- 터치 메뉴 (태블릿·마우스용) ----------
+function hideMenu(){ $('menu').hidden=true; }
+$('pageNo').addEventListener('click', e=>{ e.stopPropagation(); $('menu').hidden=!$('menu').hidden; });
+$('menu').addEventListener('click', e=>{
+  e.stopPropagation();
+  const m=e.target.closest('button')?.dataset.m; if(!m) return;
+  if(m==='full') toggleFull();
+  if(m==='cap'){ S.capHidden=!S.capHidden; renderCap(); }
+  if(m==='big'){ S.capSize=Math.min(54,S.capSize+2); applyCapSize(); saveSoon(); return; }
+  if(m==='small'){ S.capSize=Math.max(14,S.capSize-2); applyCapSize(); saveSoon(); return; }
+  if(m==='lang') switchLang();
+  if(m==='imp') markImportant();
+  if(m==='end'){ endPresent(); return; }
+  hideMenu();
+});
 let toastTimer;
 function toast(msg,ms=2500){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),ms); }
 
