@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>발표 통역 자막 도우미</title>
+<!-- pdf.js (모질라) : PDF를 슬라이드처럼 한 장씩 그림 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{
+  --bg:#f4f6f8; --card:#ffffff; --ink:#1d2433; --muted:#667085; --line:#d9dee7;
+  --accent:#1f6feb; --accent-ink:#ffffff; --ok:#1a7f37; --warn:#b54708; --bad:#c62828;
+  --cap-size:26px; --cap-w:34vw;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+[hidden]{display:none!important}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:#fff;padding:8px 14px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+button.big{font-size:20px;padding:14px 28px}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;background:#fff;color:var(--ink)}
+label{font-weight:600;font-size:14px}
+
+/* ---------- 1. 준비 화면 ---------- */
+#setup{min-height:100%;padding:24px 16px 48px}
+.wrap{max-width:860px;margin:0 auto}
+h1{font-size:26px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.card h2{font-size:17px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.num{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:14px}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row>*{flex:1 1 200px}
+.radio{display:flex;gap:10px;flex-wrap:wrap}
+.radio label{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-weight:500;cursor:pointer;flex:1 1 180px}
+.radio input{width:auto}
+.radio label.off{opacity:.5;cursor:not-allowed}
+.note{font-size:13px;color:var(--muted);margin:8px 0 0}
+.status{font-size:14px;margin-top:8px;padding:8px 10px;border-radius:8px;background:#f2f4f7}
+.status.ok{color:var(--ok)} .status.warn{color:var(--warn)} .status.bad{color:var(--bad)}
+#drop{border:2px dashed var(--line);border-radius:10px;padding:18px;text-align:center;cursor:pointer}
+#drop.over{border-color:var(--accent);background:#eef4ff}
+#thumb{max-height:120px;border:1px solid var(--line);margin-top:10px;display:block}
+.check{display:flex;align-items:center;gap:8px;font-weight:500}
+.check input{width:auto}
+#testBox{margin-top:10px;background:#111;color:#fff;border-radius:10px;padding:12px 14px;min-height:70px;font-size:17px}
+#testBox .tgt{color:#ffd54a}
+#testBox .interim{opacity:.6;font-style:italic}
+.startbar{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:18px}
+#restore{border-color:var(--warn);background:#fff8f0}
+.keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px 14px;font-size:14px;color:var(--muted)}
+kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:#fff;color:var(--ink);font-family:inherit;font-size:13px}
+
+/* ---------- 2. 발표 화면 ---------- */
+#present{position:fixed;inset:0;background:#000;overflow:hidden}
+#present.nocursor{cursor:none}
+#stage{position:absolute;top:0;left:0;bottom:0;right:0;display:grid;place-items:center}
+#present.reserve #stage{right:var(--cap-w)}
+#slide{max-width:100%;max-height:100%;object-fit:contain;user-select:none}
+#noslide{color:#888;font-size:22px}
+#cap{position:absolute;top:2vh;right:1.2vw;width:var(--cap-w);max-height:62vh;overflow:hidden;
+  background:rgba(0,0,0,.62);color:#fff;border-radius:12px;padding:12px 16px;
+  display:flex;flex-direction:column;justify-content:flex-end;gap:10px;font-size:var(--cap-size);line-height:1.35}
+#present.reserve #cap{right:0;top:0;width:var(--cap-w);max-height:100vh;height:100vh;border-radius:0;background:#0d1117}
+#cap.empty{opacity:0}
+.ent{border-left:3px solid transparent;padding-left:8px}
+.ent.imp{border-left-color:#ffd54a}
+.ent .src{color:#ffffff}
+.ent .tgt{color:#ffd54a;margin-top:2px}
+.ent .tag{font-size:.5em;opacity:.65;margin-right:6px;vertical-align:middle;letter-spacing:.05em}
+.ent.old .src,.ent.old .tgt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ent.old{opacity:.7}
+.ent.interim .src{opacity:.75;font-style:italic}
+.ent.interim .tgt{opacity:.6;font-style:italic}
+#pageNo{position:absolute;right:1.2vw;bottom:1.5vh;color:#fff;background:rgba(0,0,0,.5);padding:4px 12px;border-radius:8px;font-size:20px;display:flex;align-items:center;gap:8px}
+#dot{width:10px;height:10px;border-radius:50%;background:#777}
+#dot.on{background:#2ecc71} #dot.err{background:#e53935}
+#toast{position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);background:rgba(20,20,20,.92);color:#fff;padding:12px 20px;border-radius:10px;font-size:18px;max-width:80vw;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none}
+#toast.show{opacity:1}
+
+/* ---------- 3. 회의록 화면 ---------- */
+#minutes{min-height:100%;padding:24px 16px 60px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.mrow{display:grid;grid-template-columns:76px 60px 34px 1fr 1fr 34px;gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line)}
+.mrow.head{font-weight:700;font-size:13px;color:var(--muted)}
+.mrow textarea{min-height:56px;resize:vertical;font-size:15px}
+.mrow .t{font-size:13px;color:var(--muted);padding-top:8px}
+.star{border:none;background:none;font-size:22px;padding:4px;color:#c8cdd6}
+.star.on{color:#f5a623}
+.del{border:none;background:none;color:var(--muted);font-size:18px;padding:4px}
+@media (max-width:700px){.mrow{grid-template-columns:60px 46px 30px 1fr 30px}.mrow .tgtcol{grid-column:4/5}}
+</style>
+</head>
+<body>
+
+<!-- ===================== 1. 준비 화면 ===================== -->
+<section id="setup">
+ <div class="wrap">
+  <h1>발표 통역 자막 도우미</h1>
+  <p class="sub">PDF를 올리고 → 언어를 고르고 → [발표 시작]을 누르면 됩니다.</p>
+
+  <div id="envWarn" class="card" hidden style="border-color:var(--bad)"></div>
+
+  <div id="restore" class="card" hidden>
+   <h2>이전에 저장된 기록이 있습니다</h2>
+   <div id="restoreInfo" class="note" style="margin-bottom:10px"></div>
+   <div class="row" style="flex:none">
+    <button id="btnResume" class="primary">이어서 하기</button>
+    <button id="btnRestoreMinutes">회의록 보기·저장</button>
+    <button id="btnDiscard">지우고 새로 시작</button>
+   </div>
+  </div>
+
+  <div class="card">
+   <h2><span class="num">1</span>발표자료 PDF</h2>
+   <div id="drop">여기를 눌러 PDF 선택 (또는 파일을 끌어다 놓기)
+     <input id="pdfFile" type="file" accept="application/pdf" hidden>
+   </div>
+   <div id="pdfStatus" class="note"></div>
+   <img id="thumb" alt="" hidden>
+  </div>
+
+  <div class="card">
+   <h2><span class="num">2</span>발표 언어</h2>
+   <div class="radio">
+    <label><input type="radio" name="lang" value="ko" checked> 한국어로 발표 → 영어 번역</label>
+    <label><input type="radio" name="lang" value="en"> 영어로 발표 → 한국어 번역</label>
+   </div>
+   <label class="check" style="margin-top:10px"><input id="optTranslate" type="checkbox" checked> 번역 자막도 함께 표시 (내부 회의는 끄기)</label>
+   <div id="trStatus" class="status">번역 상태 확인 중…</div>
+  </div>
+
+  <div class="card">
+   <h2><span class="num">3</span>엔진</h2>
+   <div class="radio">
+    <label><input type="radio" name="engine" value="basic" checked> 기본 (크롬 내장)</label>
+    <label class="off"><input type="radio" name="engine" value="secure" disabled> 보안 (Whisper·NLLB) — 2·3단계에서 추가</label>
+   </div>
+   <p class="note">⚠ 기본 엔진: <b>음성은 구글 서버로 전송</b>되어 글자로 바뀝니다. 번역은 노트북 안에서 처리됩니다. 비공개 회의에는 쓰지 마세요.</p>
+   <label class="check" style="margin-top:10px"><input id="optReserve" type="checkbox"> 슬라이드를 왼쪽으로 줄여 자막 자리 따로 확보 (자막이 슬라이드를 가리지 않음)</label>
+  </div>
+
+  <div class="card">
+   <h2><span class="num">4</span>회의 정보 <span class="note" style="margin:0;font-weight:400">(회의록 맨 위에 들어갑니다)</span></h2>
+   <div class="row">
+    <div><label>일시</label><input id="mDate" type="datetime-local"></div>
+    <div><label>장소</label><input id="mPlace" placeholder="예: URA 센터 회의실"></div>
+   </div>
+   <div class="row" style="margin-top:10px">
+    <div><label>기관</label><input id="mOrg" placeholder="예: Urban Redevelopment Authority"></div>
+    <div><label>참석자</label><input id="mPeople" placeholder="예: 이명섭 팀장 외 3명, URA 담당자 2명"></div>
+   </div>
+  </div>
+
+  <div class="card">
+   <h2><span class="num">5</span>30초 자막 테스트 <span class="note" style="margin:0;font-weight:400">(선택, 강력 권장)</span></h2>
+   <button id="btnTest">🎤 테스트 시작</button>
+   <span class="note">마이크 권한 창이 뜨면 '허용'을 누르고 말해 보세요.</span>
+   <div id="testBox"><span style="opacity:.5">여기에 자막이 나타납니다</span></div>
+  </div>
+
+  <div class="startbar">
+   <button id="btnStart" class="primary big">▶ 발표 시작</button>
+   <button id="btnGoMinutes">회의록 보기</button>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+   <h2>발표 중 단축키</h2>
+   <div class="keys">
+    <div><kbd>→</kbd> <kbd>PgDn</kbd> <kbd>Space</kbd> 다음 장</div>
+    <div><kbd>←</kbd> <kbd>PgUp</kbd> 이전 장</div>
+    <div><kbd>F</kbd> 전체 화면</div>
+    <div><kbd>C</kbd> 자막 숨기기/보이기</div>
+    <div><kbd>+</kbd> <kbd>-</kbd> 자막 크기</div>
+    <div><kbd>L</kbd> 발표 언어 전환(한↔영)</div>
+    <div><kbd>M</kbd> 방금 문장 '중요' 표시</div>
+    <div><kbd>Esc</kbd> 발표 종료 → 회의록</div>
+   </div>
+   <p class="note">기록은 말할 때마다 이 노트북 크롬에 자동 저장됩니다. 창이 꺼져도 다시 열면 이어서 할 수 있습니다.</p>
+  </div>
+ </div>
+</section>
+
+<!-- ===================== 2. 발표 화면 ===================== -->
+<section id="present" hidden>
+ <div id="stage"><img id="slide" alt="" hidden><div id="noslide" hidden>슬라이드 없음 (자막만 표시)</div></div>
+ <div id="cap" class="empty"></div>
+ <div id="pageNo"><span id="dot"></span><span id="pageTxt">–</span></div>
+ <div id="toast"></div>
+</section>
+
+<!-- ===================== 3. 회의록 화면 ===================== -->
+<section id="minutes" hidden>
+ <div class="wrap" style="max-width:1100px">
+  <h1>회의록</h1>
+  <p class="sub">잘못 인식된 고유명사만 고친 뒤 저장하세요. 고친 내용도 자동 저장됩니다.</p>
+  <div class="card">
+   <div class="row">
+    <div><label>일시</label><input id="eDate" type="datetime-local"></div>
+    <div><label>장소</label><input id="ePlace"></div>
+   </div>
+   <div class="row" style="margin-top:10px">
+    <div><label>기관</label><input id="eOrg"></div>
+    <div><label>참석자</label><input id="ePeople"></div>
+   </div>
+  </div>
+  <div class="toolbar">
+   <button id="btnTxt" class="primary">📄 텍스트(.txt) 저장</button>
+   <button id="btnMd" class="primary">📝 마크다운(.md) 저장</button>
+   <button id="btnBack">▶ 발표 계속</button>
+   <button id="btnSetup">준비 화면</button>
+   <button id="btnNew">🗑 새 회의 시작</button>
+  </div>
+  <div id="mCount" class="note"></div>
+  <div class="mrow head"><div>시각</div><div>슬라이드</div><div>중요</div><div>원문</div><div class="tgtcol">번역</div><div></div></div>
+  <div id="mList"></div>
+ </div>
+</section>
+
+<script>
+/* =========================================================
+   발표 통역 자막 도우미 — 1단계 (크롬 내장 엔진)
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const LANGS = {
+  ko:{bcp:'ko-KR', name:'한국어', tag:'KO'},
+  en:{bcp:'en-US', name:'영어',   tag:'EN'}
+};
+const other = l => l === 'ko' ? 'en' : 'ko';
+const LS_KEY = 'pcap.session.v1';
+
+/* ---------- 상태 ---------- */
+const S = {
+  lang:'ko',            // 지금 발표자가 말하는 언어
+  translate:true,
+  reserve:false,
+  meta:{date:'', place:'', org:'', people:''},
+  entries:[],           // {id,time,slide,lang,src,tgt,imp}
+  slides:[],            // 슬라이드 이미지 주소
+  pdfName:'',
+  page:1,
+  capSize:26,
+  capHidden:false,
+  presenting:false,
+  interim:null          // {src,tgt}
+};
+
+/* =========================================================
+   저장 (localStorage: 기록 / IndexedDB: PDF 원본)
+   ========================================================= */
+let saveTimer=null;
+function saveSoon(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,400); }
+function saveNow(){
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      v:1, savedAt:Date.now(), lang:S.lang, translate:S.translate, reserve:S.reserve,
+      meta:S.meta, entries:S.entries, pdfName:S.pdfName, page:S.page, capSize:S.capSize
+    }));
+  }catch(e){ console.warn('자동 저장 실패', e); }
+}
+function loadSaved(){
+  try{ const t=localStorage.getItem(LS_KEY); return t?JSON.parse(t):null; }catch(e){ return null; }
+}
+function idb(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open('pcap',1);
+    r.onupgradeneeded=()=>r.result.createObjectStore('files');
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+  });
+}
+async function idbPut(key,val){ try{ const db=await idb(); await new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(val,key);tx.oncomplete=res;tx.onerror=()=>rej(tx.error);}); }catch(e){ console.warn('PDF 보관 실패',e); } }
+async function idbGet(key){ try{ const db=await idb(); return await new Promise((res,rej)=>{const r=db.transaction('files').objectStore('files').get(key);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}); }catch(e){ return null; } }
+async function idbDel(key){ try{ const db=await idb(); db.transaction('files','readwrite').objectStore('files').delete(key);}catch(e){} }
+window.addEventListener('beforeunload', saveNow);
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) saveNow(); });
+setInterval(()=>{ if(S.presenting) saveNow(); }, 10000);
+
+/* =========================================================
+   PDF → 슬라이드 이미지 (한 번 그려 두면 인터넷이 끊겨도 유지)
+   ========================================================= */
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+async function loadPdf(buf, name){
+  if(!window.pdfjsLib){ $('pdfStatus').textContent='PDF 프로그램을 불러오지 못했습니다. 인터넷 연결 후 새로고침(F5) 하세요.'; return; }
+  $('pdfStatus').textContent='슬라이드 준비 중…';
+  S.slides.forEach(u=>URL.revokeObjectURL(u)); S.slides=[];
+  const pdf = await pdfjsLib.getDocument({data:new Uint8Array(buf.slice(0))}).promise;
+  const dpr = window.devicePixelRatio||1;
+  const W = Math.min(screen.width*dpr, 3840), H = Math.min(screen.height*dpr, 2160);
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const v1 = page.getViewport({scale:1});
+    const vp = page.getViewport({scale:Math.min(W/v1.width, H/v1.height)});
+    const c = document.createElement('canvas'); c.width=Math.floor(vp.width); c.height=Math.floor(vp.height);
+    const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
+    await page.render({canvasContext:ctx, viewport:vp}).promise;
+    const blob = await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));
+    S.slides.push(URL.createObjectURL(blob));
+    page.cleanup();
+    $('pdfStatus').textContent=`슬라이드 준비 중… ${i} / ${pdf.numPages}`;
+  }
+  S.pdfName=name;
+  if(S.page>S.slides.length) S.page=1;
+  $('pdfStatus').innerHTML=`✅ <b>${esc(name)}</b> — ${S.slides.length}장 준비 완료`;
+  $('thumb').src=S.slides[0]; $('thumb').hidden=false;
+  saveSoon();
+}
+async function onPdfFile(file){
+  if(!file) return;
+  if(file.type!=='application/pdf' && !/\.pdf$/i.test(file.name)){ $('pdfStatus').textContent='PDF 파일만 올릴 수 있습니다.'; return; }
+  const buf = await file.arrayBuffer();
+  S.page=1;
+  try{ await loadPdf(buf, file.name); await idbPut('pdf',{name:file.name,data:buf}); }
+  catch(e){ console.error(e); $('pdfStatus').textContent='PDF를 여는 중 오류: '+e.message; }
+}
+$('drop').onclick=()=>$('pdfFile').click();
+$('pdfFile').onchange=e=>onPdfFile(e.target.files[0]);
+$('drop').ondragover=e=>{e.preventDefault();$('drop').classList.add('over');};
+$('drop').ondragleave=()=>$('drop').classList.remove('over');
+$('drop').ondrop=e=>{e.preventDefault();$('drop').classList.remove('over');onPdfFile(e.dataTransfer.files[0]);};
+
+/* =========================================================
+   번역 (크롬 내장 Translator API — 노트북 안에서 처리)
+   ========================================================= */
+const Tr = {
+  pairs:{}, creating:null, busy:false,
+  supported: ('Translator' in self),
+  // 버튼을 누른 순간(사용자 동작) 바로 호출해야 함
+  ensure(){
+    if(!this.supported) return Promise.resolve();
+    if(this.creating) return this.creating;
+    const mk = (s,t) => Translator.create({
+      sourceLanguage:s, targetLanguage:t,
+      monitor(m){ m.addEventListener('downloadprogress', e=>setTrStatus(`번역 모델 내려받는 중… ${Math.round(e.loaded*100)}%`,'warn')); }
+    }).then(tr=>{ this.pairs[s+t]=tr; }).catch(err=>{ console.warn('번역기 생성 실패',s,'→',t,err); });
+    this.creating = Promise.all([mk('ko','en'), mk('en','ko')]).then(()=>refreshTrStatus());
+    return this.creating;
+  },
+  ready(s,t){ return !!this.pairs[s+t]; },
+  async translate(text,s,t){
+    const tr=this.pairs[s+t]; if(!tr||!text) return null;
+    this.busy=true;
+    try{ return await tr.translate(text); }
+    catch(e){ console.warn('번역 오류',e); return null; }
+    finally{ this.busy=false; }
+  }
+};
+function setTrStatus(msg,cls){ const el=$('trStatus'); el.textContent=msg; el.className='status '+(cls||''); }
+async function refreshTrStatus(){
+  if(!Tr.supported){ setTrStatus('❌ 이 크롬에는 내장 번역 기능이 없습니다 (크롬 138 이상, PC용 필요). 원문 자막만 표시됩니다.','bad'); return; }
+  const s=S.lang, t=other(s);
+  if(Tr.ready(s,t)){ setTrStatus(`✅ ${LANGS[s].name} → ${LANGS[t].name} 번역 준비됨`,'ok'); return; }
+  try{
+    const a = await Translator.availability({sourceLanguage:s, targetLanguage:t});
+    const m = {
+      available:  [`✅ ${LANGS[s].name} → ${LANGS[t].name} 번역 사용 가능`,'ok'],
+      downloadable:[`⬇ 번역 모델을 처음 한 번 내려받아야 합니다. [테스트 시작] 또는 [발표 시작]을 누르면 자동으로 받습니다.`,'warn'],
+      downloading: [`⬇ 번역 모델 내려받는 중…`,'warn'],
+      unavailable: [`❌ 이 노트북에서는 ${LANGS[s].name} → ${LANGS[t].name} 번역을 쓸 수 없습니다. 원문만 표시됩니다.`,'bad']
+    }[a] || [`번역 상태: ${a}`,''];
+    setTrStatus(m[0], m[1]);
+  }catch(e){ setTrStatus('번역 상태 확인 실패: '+e.message,'bad'); }
+}
+
+/* =========================================================
+   음성인식 (크롬 내장 Web Speech API — 음성이 구글로 전송됨)
+   ========================================================= */
+const Speech = {
+  rec:null, want:false, gen:0, backoff:300, handlers:{interim(){},final(){},state(){}},
+  supported: !!(window.SpeechRecognition||window.webkitSpeechRecognition),
+  start(lang){
+    if(!this.supported) return;
+    this.stop(); this.want=true; const g=++this.gen;
+    const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+    const r = new SR();
+    r.lang=LANGS[lang].bcp; r.continuous=true; r.interimResults=true; r.maxAlternatives=1;
+    r.onstart=()=>{ if(g!==this.gen) return; this.backoff=300; this.handlers.state('on'); };
+    r.onresult=e=>{
+      if(g!==this.gen) return;
+      let interim='';
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const res=e.results[i], txt=res[0].transcript;
+        if(res.isFinal){ const t=txt.trim(); if(t) this.handlers.final(t); }
+        else interim+=txt;
+      }
+      this.handlers.interim(interim.trim());
+    };
+    r.onerror=e=>{
+      if(g!==this.gen) return;
+      console.warn('음성인식 오류:', e.error, e.message);
+      if(e.error==='no-speech'||e.error==='aborted') return;
+      if(e.error==='not-allowed'||e.error==='service-not-allowed'){
+        this.want=false; this.handlers.state('err');
+        toast('마이크가 차단되어 있습니다. 주소창 왼쪽 아이콘 → 마이크 "허용" 후 새로고침하세요.',8000); return;
+      }
+      if(e.error==='audio-capture'){ this.handlers.state('err'); toast('마이크를 찾을 수 없습니다. 마이크 연결을 확인하세요.',6000); }
+      if(e.error==='network'){ this.handlers.state('err'); this.backoff=Math.min(this.backoff*2,5000);
+        toast('인터넷 연결 확인 필요 — 자막은 연결되면 자동 재개됩니다. 슬라이드와 기록은 그대로 유지됩니다.',5000); }
+    };
+    r.onend=()=>{
+      if(g!==this.gen) return;
+      if(this.want){ setTimeout(()=>{ if(this.want&&g===this.gen){ try{ r.start(); }catch(_){} } }, this.backoff); }
+      else this.handlers.state('off');
+    };
+    this.rec=r;
+    try{ r.start(); }catch(e){ console.warn(e); }
+  },
+  stop(){ this.want=false; this.gen++; if(this.rec){ try{ this.rec.abort(); }catch(_){} this.rec=null; } this.handlers.state('off'); }
+};
+
+/* ---------- 미완성 문장 번역 (번역기가 쉬고 있을 때만, 1초 간격) ---------- */
+let lastInterimTr=0, interimSeq=0;
+async function maybeTranslateInterim(src, apply){
+  const s=S.lang, t=other(s);
+  if(!S.translate||!Tr.ready(s,t)||Tr.busy) return;
+  if(src.length<6||Date.now()-lastInterimTr<1000) return;
+  lastInterimTr=Date.now(); const my=++interimSeq;
+  const out=await Tr.translate(src,s,t);
+  if(my===interimSeq&&out) apply(out);
+}
+
+/* =========================================================
+   준비 화면: 자막 테스트
+   ========================================================= */
+let testing=false, testLines=[];
+function renderTest(interim){
+  const box=$('testBox');
+  const html=testLines.slice(-2).map(l=>`<div>${esc(l.src)}</div>${l.tgt?`<div class="tgt">${esc(l.tgt)}</div>`:''}`).join('');
+  box.innerHTML = html + (interim?`<div class="interim">${esc(interim)}</div>`:'') || '<span style="opacity:.5">듣고 있습니다… 말해 보세요</span>';
+}
+$('btnTest').onclick=()=>{
+  if(!Speech.supported){ alert('이 브라우저는 음성인식을 지원하지 않습니다. 크롬으로 열어 주세요.'); return; }
+  if(testing){ stopTest(); return; }
+  readSetup();
+  if(S.translate) Tr.ensure();
+  testing=true; testLines=[]; $('btnTest').textContent='■ 테스트 끝내기';
+  Speech.handlers={
+    state(st){ if(st==='off'&&testing) {} },
+    interim(t){ renderTest(t); interimSeq++; },
+    async final(t){
+      const line={src:t,tgt:''}; testLines.push(line); renderTest('');
+      if(S.translate){ const out=await Tr.translate(t,S.lang,other(S.lang)); if(out){ line.tgt=out; renderTest(''); } }
+    }
+  };
+  renderTest('');
+  Speech.start(S.lang);
+  setTimeout(()=>{ if(testing) stopTest(); }, 30000);
+};
+function stopTest(){ testing=false; Speech.stop(); $('btnTest').textContent='🎤 테스트 다시 하기'; }
+
+/* =========================================================
+   발표 화면
+   ========================================================= */
+function readSetup(){
+  S.lang = document.querySelector('input[name=lang]:checked').value;
+  S.translate = $('optTranslate').checked;
+  S.reserve = $('optReserve').checked;
+  S.meta = {date:$('mDate').value, place:$('mPlace').value.trim(), org:$('mOrg').value.trim(), people:$('mPeople').value.trim()};
+}
+function startPresent(){
+  if(!Speech.supported){ alert('이 브라우저는 음성인식을 지원하지 않습니다. 크롬으로 열어 주세요.'); return; }
+  if(testing) stopTest();
+  readSetup();
+  if(S.translate) Tr.ensure();                         // 사용자 클릭 직후에 번역 준비
+  document.documentElement.requestFullscreen?.().catch(()=>{});
+  show('present');
+  S.presenting=true;
+  $('present').classList.toggle('reserve', S.reserve);
+  applyCapSize();
+  showPage();
+  renderCap();
+  Speech.handlers = { state:setDot, interim:onInterim, final:onFinal };
+  Speech.start(S.lang);
+  toast(`${LANGS[S.lang].name} 발표 · 자막 시작 (L: 언어 전환, Esc: 종료)`, 3500);
+  saveSoon();
+}
+function endPresent(){
+  S.presenting=false; Speech.stop(); S.interim=null;
+  if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  saveNow(); openMinutes();
+}
+function showPage(){
+  const n=S.slides.length;
+  if(n){ S.page=Math.max(1,Math.min(n,S.page)); $('slide').src=S.slides[S.page-1]; $('slide').hidden=false; $('noslide').hidden=true; $('pageTxt').textContent=`${S.page} / ${n}`; }
+  else { $('slide').hidden=true; $('noslide').hidden=false; $('pageTxt').textContent='–'; }
+}
+function go(d){ if(!S.slides.length) return; const p=S.page+d; if(p<1||p>S.slides.length) return; S.page=p; showPage(); saveSoon(); }
+function setDot(st){ $('dot').className = st==='on'?'on':st==='err'?'err':''; }
+
+function onInterim(t){
+  if(!S.presenting) return;
+  if(!t){ S.interim=null; renderCap(); return; }
+  const prev = S.interim;
+  S.interim={src:t, tgt: prev?prev.tgt:''};
+  renderCap();
+  maybeTranslateInterim(t, out=>{ if(S.interim&&S.interim.src===t){ S.interim.tgt=out; renderCap(); } });
+}
+async function onFinal(t){
+  if(!S.presenting) return;
+  S.interim=null; interimSeq++;
+  const e={id:Date.now()+Math.random(), time:new Date().toISOString(), slide:S.slides.length?S.page:0, lang:S.lang, src:t, tgt:'', imp:false};
+  if(pendingImp){ e.imp=true; pendingImp=false; }
+  S.entries.push(e); renderCap(); saveSoon();
+  if(S.translate){
+    const out = await Tr.translate(t, e.lang, other(e.lang));
+    if(out){ e.tgt=out; renderCap(); saveSoon(); }
+  }
+}
+function renderCap(){
+  const cap=$('cap');
+  const last=S.entries.slice(-3);
+  const items=last.map((e,i)=>({...e, old: i<last.length-1 || !!S.interim}));
+  if(S.interim) items.push({...S.interim, lang:S.lang, interim:true});
+  const show=items.slice(-3);
+  cap.innerHTML = show.map(e=>`<div class="ent${e.old?' old':''}${e.interim?' interim':''}${e.imp?' imp':''}">
+     <div class="src"><span class="tag">${LANGS[e.lang].tag}</span>${esc(e.src)}</div>
+     ${S.translate&&e.tgt?`<div class="tgt"><span class="tag">${LANGS[other(e.lang)].tag}</span>${esc(e.tgt)}</div>`:''}
+   </div>`).join('');
+  cap.classList.toggle('empty', S.capHidden || show.length===0);
+}
+function applyCapSize(){
+  document.documentElement.style.setProperty('--cap-size', S.capSize+'px');
+  document.documentElement.style.setProperty('--cap-w', Math.min(48, 22 + S.capSize*0.45)+'vw');
+}
+let pendingImp=false;
+function markImportant(){
+  const e=S.entries[S.entries.length-1];
+  if(S.interim){ pendingImp=true; toast('★ 지금 말하는 문장을 중요로 표시합니다',1500); return; }
+  if(!e){ toast('아직 기록된 문장이 없습니다',1500); return; }
+  e.imp=!e.imp; renderCap(); saveSoon();
+  toast(e.imp?'★ 중요 표시':'중요 표시 해제',1500);
+}
+function switchLang(){
+  S.lang=other(S.lang); S.interim=null;
+  Speech.start(S.lang); renderCap(); saveSoon();
+  toast(`발표 언어: ${LANGS[S.lang].name} → 자막 ${LANGS[other(S.lang)].name} 번역`,2500);
+}
+
+/* ---------- 키보드·리모컨 ---------- */
+document.addEventListener('keydown', e=>{
+  if(!S.presenting) return;
+  if(e.target.matches('input,textarea,select')) return;
+  const k=e.key, c=e.code;    // code를 쓰면 한글 자판 상태에서도 F·C·L·M이 작동
+  if(['ArrowRight','ArrowDown','PageDown',' ','Enter'].includes(k)){ e.preventDefault(); go(1); return; }
+  if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(k)){ e.preventDefault(); go(-1); return; }
+  if(k==='Home'){ e.preventDefault(); S.page=1; showPage(); return; }
+  if(k==='End'){ e.preventDefault(); S.page=S.slides.length||1; showPage(); return; }
+  if(c==='KeyF'){ e.preventDefault(); if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(()=>{}); return; }
+  if(c==='KeyC'){ S.capHidden=!S.capHidden; renderCap(); toast(S.capHidden?'자막 숨김 (C: 다시 보이기)':'자막 표시',1500); return; }
+  if(k==='+'||k==='='||c==='NumpadAdd'){ S.capSize=Math.min(54,S.capSize+2); applyCapSize(); saveSoon(); return; }
+  if(k==='-'||k==='_'||c==='NumpadSubtract'){ S.capSize=Math.max(14,S.capSize-2); applyCapSize(); saveSoon(); return; }
+  if(c==='KeyL'){ switchLang(); return; }
+  if(c==='KeyM'){ markImportant(); return; }
+  if(k==='Escape'){ endPresent(); return; }
+  if(k==='F5'){ e.preventDefault(); return; }  // 리모컨의 '슬라이드쇼' 버튼이 새로고침하지 않도록
+});
+document.addEventListener('fullscreenchange', ()=>{
+  if(S.presenting && !document.fullscreenElement)
+    toast('전체 화면 해제됨 · F: 다시 전체 화면 · Esc: 발표 종료', 4000);
+});
+// 마우스: 2초 가만히 있으면 커서 숨김, 화면 왼쪽/오른쪽 클릭으로 넘김
+let curTimer;
+$('present').addEventListener('mousemove', ()=>{ $('present').classList.remove('nocursor'); clearTimeout(curTimer); curTimer=setTimeout(()=>$('present').classList.add('nocursor'),2000); });
+$('stage').addEventListener('click', e=>{ go(e.clientX < $('stage').clientWidth/3 ? -1 : 1); });
+
+let toastTimer;
+function toast(msg,ms=2500){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),ms); }
+
+/* =========================================================
+   회의록 화면
+   ========================================================= */
+function openMinutes(){
+  show('minutes');
+  $('eDate').value=S.meta.date; $('ePlace').value=S.meta.place; $('eOrg').value=S.meta.org; $('ePeople').value=S.meta.people;
+  renderMinutes();
+}
+['eDate','ePlace','eOrg','ePeople'].forEach(id=>$(id).addEventListener('input',()=>{
+  S.meta={date:$('eDate').value, place:$('ePlace').value, org:$('eOrg').value, people:$('ePeople').value};
+  syncSetupMeta(); saveSoon();
+}));
+function hhmmss(iso){ const d=new Date(iso); return d.toTimeString().slice(0,8); }
+function renderMinutes(){
+  const list=$('mList');
+  $('mCount').textContent=`총 ${S.entries.length}문장 · 중요 ${S.entries.filter(e=>e.imp).length}개`;
+  if(!S.entries.length){ list.innerHTML='<p class="note">아직 기록이 없습니다.</p>'; return; }
+  list.innerHTML=S.entries.map((e,i)=>`<div class="mrow" data-i="${i}">
+     <div class="t">${hhmmss(e.time)}</div>
+     <div class="t">${e.slide?e.slide+'장':'–'}</div>
+     <button class="star${e.imp?' on':''}" data-act="imp" title="중요">★</button>
+     <textarea data-f="src">${esc(e.src)}</textarea>
+     <textarea class="tgtcol" data-f="tgt" placeholder="(번역 없음)">${esc(e.tgt||'')}</textarea>
+     <button class="del" data-act="del" title="이 문장 삭제">✕</button>
+   </div>`).join('');
+}
+$('mList').addEventListener('input', e=>{
+  const row=e.target.closest('.mrow'); if(!row||!e.target.dataset.f) return;
+  S.entries[+row.dataset.i][e.target.dataset.f]=e.target.value; saveSoon();
+});
+$('mList').addEventListener('click', e=>{
+  const act=e.target.dataset.act; if(!act) return;
+  const i=+e.target.closest('.mrow').dataset.i;
+  if(act==='imp'){ S.entries[i].imp=!S.entries[i].imp; }
+  if(act==='del'){ if(!confirm('이 문장을 삭제할까요?')) return; S.entries.splice(i,1); }
+  saveSoon(); renderMinutes();
+});
+function metaDate(){ if(!S.meta.date) return ''; const d=new Date(S.meta.date); return isNaN(d)?S.meta.date:d.toLocaleString('ko-KR',{dateStyle:'long',timeStyle:'short'}); }
+function buildTxt(){
+  const L=[];
+  L.push('회의록 (발표 통역 자막 도우미)','');
+  L.push('일시: '+metaDate(), '장소: '+S.meta.place, '기관: '+S.meta.org, '참석자: '+S.meta.people);
+  L.push('자료: '+(S.pdfName||'-'), '기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
+  L.push('','============================================================','');
+  S.entries.forEach(e=>{
+    L.push(`[${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}]${e.imp?' ★중요':''}`);
+    L.push(`원문(${LANGS[e.lang].tag}): ${e.src}`);
+    if(e.tgt) L.push(`번역(${LANGS[other(e.lang)].tag}): ${e.tgt}`);
+    L.push('');
+  });
+  return L.join('\r\n');
+}
+function buildMd(){
+  const cell=s=>(s||'').replace(/\|/g,'\\|').replace(/\n/g,' ');
+  const L=[];
+  L.push('# 회의록','');
+  L.push('| 항목 | 내용 |','|---|---|');
+  L.push(`| 일시 | ${cell(metaDate())} |`,`| 장소 | ${cell(S.meta.place)} |`,`| 기관 | ${cell(S.meta.org)} |`,`| 참석자 | ${cell(S.meta.people)} |`,`| 자료 | ${cell(S.pdfName||'-')} |`);
+  const imp=S.entries.filter(e=>e.imp);
+  if(imp.length){
+    L.push('','## ★ 중요 표시 문장','');
+    imp.forEach(e=>L.push(`- [${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}] ${cell(e.src)}${e.tgt?' / '+cell(e.tgt):''}`));
+  }
+  L.push('','## 전체 기록','','| 시각 | 슬라이드 | 중요 | 원문 | 번역 |','|---|---|---|---|---|');
+  S.entries.forEach(e=>L.push(`| ${hhmmss(e.time)} | ${e.slide||'-'} | ${e.imp?'★':''} | ${cell(e.src)} | ${cell(e.tgt)} |`));
+  return L.join('\n');
+}
+function fileBase(){
+  const d=S.meta.date?new Date(S.meta.date):new Date(S.entries[0]?.time||Date.now());
+  const p=n=>String(n).padStart(2,'0');
+  const stamp=isNaN(d)?'':`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  const org=(S.meta.org||'').replace(/[\\/:*?"<>|]/g,'').slice(0,30);
+  return ['회의록',stamp,org].filter(Boolean).join('_');
+}
+function download(text,ext,mime){
+  const blob=new Blob(['\ufeff'+text],{type:mime+';charset=utf-8'});   // \ufeff: 메모장 한글 깨짐 방지
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fileBase()+ext;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+$('btnTxt').onclick=()=>download(buildTxt(),'.txt','text/plain');
+$('btnMd').onclick=()=>download(buildMd(),'.md','text/markdown');
+$('btnBack').onclick=startPresent;
+$('btnSetup').onclick=()=>{ show('setup'); refreshTrStatus(); };
+$('btnNew').onclick=()=>{
+  if(!confirm('지금 기록을 지우고 새 회의를 시작할까요?\n(먼저 .txt/.md로 저장했는지 확인하세요)')) return;
+  S.entries=[]; S.meta={date:nowLocal(),place:'',org:'',people:''}; S.page=1; syncSetupMeta(); saveNow();
+  show('setup');
+};
+
+/* =========================================================
+   공통
+   ========================================================= */
+function show(id){ ['setup','present','minutes'].forEach(x=>$(x).hidden = x!==id); window.scrollTo(0,0); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function nowLocal(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); }
+function syncSetupMeta(){ $('mDate').value=S.meta.date; $('mPlace').value=S.meta.place; $('mOrg').value=S.meta.org; $('mPeople').value=S.meta.people; }
+function syncSetupOptions(){
+  document.querySelector(`input[name=lang][value=${S.lang}]`).checked=true;
+  $('optTranslate').checked=S.translate; $('optReserve').checked=S.reserve;
+}
+document.querySelectorAll('input[name=lang]').forEach(r=>r.onchange=()=>{ S.lang=r.value; refreshTrStatus(); });
+$('btnStart').onclick=startPresent;
+$('btnGoMinutes').onclick=()=>{ readSetup(); openMinutes(); };
+
+/* ---------- 시작할 때: 환경 점검 + 이전 기록 복구 ---------- */
+(async function init(){
+  const warns=[];
+  if(!Speech.supported) warns.push('이 브라우저는 음성인식을 지원하지 않습니다. <b>크롬(PC)</b>으로 열어 주세요.');
+  if(!window.pdfjsLib) warns.push('PDF 프로그램을 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침(F5) 하세요.');
+  if(warns.length){ $('envWarn').innerHTML=warns.map(w=>'⚠ '+w).join('<br>'); $('envWarn').hidden=false; }
+
+  $('mDate').value=nowLocal();
+  const saved=loadSaved();
+  if(saved && (saved.entries?.length || saved.pdfName)){
+    const when=new Date(saved.savedAt).toLocaleString('ko-KR');
+    $('restoreInfo').innerHTML=`${esc(saved.meta?.org||'(기관 미입력)')} · 기록 ${saved.entries?.length||0}문장 · 자료 ${esc(saved.pdfName||'없음')} · 마지막 저장 ${when}`;
+    $('restore').hidden=false;
+    const apply=async()=>{
+      Object.assign(S,{lang:saved.lang||'ko',translate:saved.translate!==false,reserve:!!saved.reserve,meta:saved.meta||S.meta,entries:saved.entries||[],page:saved.page||1,capSize:saved.capSize||26});
+      syncSetupMeta(); syncSetupOptions(); refreshTrStatus();
+      const f=await idbGet('pdf'); if(f&&f.data){ const pg=S.page; await loadPdf(f.data,f.name); S.page=pg; }
+      $('restore').hidden=true;
+    };
+    $('btnResume').onclick=apply;
+    $('btnRestoreMinutes').onclick=async()=>{ await apply(); openMinutes(); };
+    $('btnDiscard').onclick=async()=>{
+      if(!confirm('저장된 기록과 PDF를 지울까요? (먼저 회의록을 저장했는지 확인하세요)')) return;
+      try{ localStorage.removeItem(LS_KEY); }catch(_){}
+      await idbDel('pdf'); $('restore').hidden=true;
+    };
+  }
+  refreshTrStatus();
+})();
+</script>
+</body>
+</html>
