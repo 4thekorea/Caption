@@ -59,20 +59,21 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
 #present.reserve #stage{right:var(--cap-w)}
 #slide{max-width:100%;max-height:100%;object-fit:contain;user-select:none}
 #noslide{color:#888;font-size:22px}
-#cap{position:absolute;top:2vh;right:1.2vw;width:var(--cap-w);max-height:62vh;overflow:hidden;
-  background:rgba(0,0,0,.62);color:#fff;border-radius:12px;padding:12px 16px;
-  display:flex;flex-direction:column;justify-content:flex-end;gap:10px;font-size:var(--cap-size);line-height:1.35}
-#present.reserve #cap{right:0;top:0;width:var(--cap-w);max-height:100vh;height:100vh;border-radius:0;background:#0d1117}
+#cap{position:absolute;top:2vh;right:1.2vw;width:var(--cap-w);display:flex;flex-direction:column;gap:1.4vh;font-size:var(--cap-size);line-height:1.35;transition:opacity .2s}
 #cap.empty{opacity:0}
-.ent{border-left:3px solid transparent;padding-left:8px}
-.ent.imp{border-left-color:#ffd54a}
-.ent .src{color:#ffffff}
-.ent .tgt{color:#ffd54a;margin-top:2px}
-.ent .tag{font-size:.5em;opacity:.65;margin-right:6px;vertical-align:middle;letter-spacing:.05em}
-.ent.old .src,.ent.old .tgt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.ent.old{opacity:.7}
-.ent.interim .src{opacity:.75;font-style:italic}
-.ent.interim .tgt{opacity:.6;font-style:italic}
+.capbox{background:rgba(0,0,0,.68);color:#fff;border-radius:12px;padding:8px 16px 12px;display:flex;flex-direction:column;min-height:0}
+.capbox .lbl{font-size:max(12px,calc(var(--cap-size)*.45));letter-spacing:.04em;color:#aab4c5;margin-bottom:4px;flex:none}
+.capbox .lines{display:flex;flex-direction:column;justify-content:flex-end;gap:6px;max-height:34vh;overflow:hidden}
+.tgtbox{background:rgba(10,20,45,.78)}
+.tgtbox .lines{color:#ffd54a}
+.ln.old{opacity:.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ln.interim{opacity:.7;font-style:italic}
+.ln.wait{opacity:.45}
+.ln.imp{border-left:3px solid #ffd54a;padding-left:8px}
+#present.reserve #cap{top:0;right:0;bottom:0;width:var(--cap-w);gap:0;background:#0d1117}
+#present.reserve .capbox{flex:1 1 50%;border-radius:0;background:transparent;padding:14px 18px}
+#present.reserve .tgtbox{background:#101a30;border-top:2px solid #30363d;padding-bottom:60px}
+#present.reserve .capbox .lines{max-height:none;flex:1;min-height:0}
 #pageNo{position:absolute;right:1.2vw;bottom:1.5vh;color:#fff;background:rgba(0,0,0,.5);padding:4px 12px;border-radius:8px;font-size:20px;display:flex;align-items:center;gap:8px}
 #dot{width:10px;height:10px;border-radius:50%;background:#777}
 #dot.on{background:#2ecc71} #dot.err{background:#e53935}
@@ -132,17 +133,26 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
     <label><input type="radio" name="lang" value="en"> 영어로 발표 → 한국어 번역</label>
    </div>
    <label class="check" style="margin-top:10px"><input id="optTranslate" type="checkbox" checked> 번역 자막도 함께 표시 (내부 회의는 끄기)</label>
+   <div style="margin-top:14px"><label>번역 엔진</label></div>
+   <div class="radio" style="margin-top:6px">
+    <label><input type="radio" name="tre" value="auto" checked> 자동 (추천)</label>
+    <label><input type="radio" name="tre" value="chrome"> 크롬 내장 (PC 크롬)</label>
+    <label><input type="radio" name="tre" value="hf"> 허깅페이스 모델 (아이패드·모든 기기)</label>
+   </div>
    <div id="trStatus" class="status">번역 상태 확인 중…</div>
+   <button id="btnTrLoad" style="margin-top:8px" hidden>⬇ 번역 모델 내려받기</button>
+   <p class="note">자동: PC 크롬이면 크롬 내장, 아이패드 등은 허깅페이스 모델을 씁니다.<br>
+   허깅페이스 모델은 처음 한 번 모델 파일만 내려받고(한→영 약 110MB · 영→한 약 850MB), 번역은 이 기기 안에서 처리됩니다. <b>와이파이에서 미리 받아 두세요.</b> 영→한 모델은 크고 느려 PC 전용(실험용)입니다.</p>
   </div>
 
   <div class="card">
    <h2><span class="num">3</span>엔진</h2>
    <div class="radio">
-    <label><input type="radio" name="engine" value="basic" checked> 기본 (크롬 내장)</label>
+    <label><input type="radio" name="engine" value="basic" checked> 기본 (브라우저 내장 음성인식)</label>
     <label class="off"><input type="radio" name="engine" value="secure" disabled> 보안 (Whisper·NLLB) — 2·3단계에서 추가</label>
    </div>
-   <p class="note">⚠ 기본 엔진: <b>음성은 구글 서버로 전송</b>되어 글자로 바뀝니다. 번역은 노트북 안에서 처리됩니다. 비공개 회의에는 쓰지 마세요.</p>
-   <label class="check" style="margin-top:10px"><input id="optReserve" type="checkbox"> 슬라이드를 왼쪽으로 줄여 자막 자리 따로 확보 (자막이 슬라이드를 가리지 않음)</label>
+   <p class="note">⚠ 기본 엔진: <b>음성이 브라우저 회사 서버(크롬=구글, 사파리=애플)로 전송</b>되어 글자로 바뀝니다. 번역은 이 기기 안에서 처리됩니다. 비공개 회의에는 쓰지 마세요.</p>
+   <label class="check" style="margin-top:10px"><input id="optReserve" type="checkbox" checked> 오른쪽에 자막 전용 칸 만들기 (위: 발표 원문 / 아래: 번역) — 끄면 슬라이드 위에 자막이 겹쳐 뜸</label>
   </div>
 
   <div class="card">
@@ -182,7 +192,7 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
     <div><kbd>Esc</kbd> 발표 종료 → 회의록</div>
     <div>📱 태블릿: 화면 오른쪽 터치=다음, 왼쪽 ⅓=이전, 오른쪽 아래 페이지 번호 터치=메뉴</div>
    </div>
-   <p class="note">기록은 말할 때마다 이 노트북 크롬에 자동 저장됩니다. 창이 꺼져도 다시 열면 이어서 할 수 있습니다.</p>
+   <p class="note">기록은 말할 때마다 이 기기의 브라우저에 자동 저장됩니다. 창이 꺼져도 다시 열면 이어서 할 수 있습니다.</p>
   </div>
  </div>
 </section>
@@ -190,7 +200,10 @@ kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(-
 <!-- ===================== 2. 발표 화면 ===================== -->
 <section id="present" hidden>
  <div id="stage"><img id="slide" alt="" hidden><div id="noslide" hidden>슬라이드 없음 (자막만 표시)</div></div>
- <div id="cap" class="empty"></div>
+ <div id="cap" class="empty">
+  <div class="capbox srcbox"><div class="lbl" id="lblSrc">원문</div><div class="lines" id="capSrc"></div></div>
+  <div class="capbox tgtbox" id="tgtBox"><div class="lbl" id="lblTgt">번역</div><div class="lines" id="capTgt"></div></div>
+ </div>
  <div id="pageNo" title="메뉴"><span id="dot"></span><span id="pageTxt">–</span><span style="opacity:.7">☰</span></div>
  <div id="menu" hidden>
   <button data-m="full">⛶ 전체 화면</button>
@@ -248,7 +261,8 @@ const LS_KEY = 'pcap.session.v1';
 const S = {
   lang:'ko',            // 지금 발표자가 말하는 언어
   translate:true,
-  reserve:false,
+  trEngine:'auto',      // auto | chrome | hf
+  reserve:true,
   meta:{date:'', place:'', org:'', people:''},
   entries:[],           // {id,time,slide,lang,src,tgt,imp}
   slides:[],            // 슬라이드 이미지 주소
@@ -268,7 +282,7 @@ function saveSoon(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,400);
 function saveNow(){
   try{
     localStorage.setItem(LS_KEY, JSON.stringify({
-      v:1, savedAt:Date.now(), lang:S.lang, translate:S.translate, reserve:S.reserve,
+      v:1, savedAt:Date.now(), lang:S.lang, translate:S.translate, trEngine:S.trEngine, reserve:S.reserve,
       meta:S.meta, entries:S.entries, pdfName:S.pdfName, page:S.page, capSize:S.capSize
     }));
   }catch(e){ console.warn('자동 저장 실패', e); }
@@ -356,47 +370,139 @@ $('drop').ondragleave=()=>$('drop').classList.remove('over');
 $('drop').ondrop=e=>{e.preventDefault();$('drop').classList.remove('over');onPdfFile(e.dataTransfer.files[0]);};
 
 /* =========================================================
-   번역 (크롬 내장 Translator API — 노트북 안에서 처리)
+   번역 엔진 ①: 허깅페이스 모델 (Transformers.js, 이 기기 안에서 실행)
+   - 한→영: Xenova/opus-mt-ko-en (약 110MB)
+   - 영→한: Xenova/nllb-200-distilled-600M (약 850MB, PC 전용·실험용)
+   ========================================================= */
+const HF_WORKER_CODE = `
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
+env.allowLocalModels = false;
+const M = {
+  koen: { id:'Xenova/opus-mt-ko-en' },
+  enko: { id:'Xenova/nllb-200-distilled-600M', o:{ src_lang:'eng_Latn', tgt_lang:'kor_Hang' } }
+};
+const P = {};
+function get(key){
+  if(!P[key]) P[key] = pipeline('translation', M[key].id, {
+    dtype:'q8',
+    progress_callback: p => self.postMessage({ type:'progress', key, p:{ status:p.status, file:p.file, loaded:p.loaded, total:p.total } })
+  }).catch(e => { P[key] = null; throw e; });
+  return P[key];
+}
+let chain = Promise.resolve();
+self.onmessage = e => {
+  const d = e.data;
+  chain = chain.then(async () => {
+    try {
+      const tr = await get(d.key);
+      if (d.cmd === 'load') { self.postMessage({ id:d.id, type:'ok' }); return; }
+      const out = await tr(d.text, Object.assign({ max_new_tokens:200 }, M[d.key].o || {}));
+      self.postMessage({ id:d.id, type:'ok', text:(out[0] && out[0].translation_text) || '' });
+    } catch (err) {
+      self.postMessage({ id:d.id, type:'error', message:String((err && err.message) || err) });
+    }
+  });
+};
+`;
+const HF = {
+  models:{ koen:{id:'Xenova/opus-mt-ko-en', size:'약 110MB'}, enko:{id:'Xenova/nllb-200-distilled-600M', size:'약 850MB'} },
+  worker:null, seq:0, waits:{}, state:{koen:'none',enko:'none'}, loadP:{}, prog:{koen:{},enko:{}}, err:'',
+  start(){
+    if(this.worker) return;
+    const url=URL.createObjectURL(new Blob([HF_WORKER_CODE],{type:'text/javascript'}));
+    this.worker=new Worker(url,{type:'module'});
+    this.worker.onmessage=e=>this.onmsg(e.data);
+    this.worker.onerror=e=>{
+      console.error('번역 작업자 오류', e.message||e);
+      this.err=e.message||'번역 프로그램을 불러오지 못했습니다';
+      for(const id in this.waits){ this.waits[id].rej(new Error(this.err)); delete this.waits[id]; }
+      for(const k in this.state) if(this.state[k]==='loading'){ this.state[k]='error'; this.loadP[k]=null; }
+      this.worker=null; refreshTrStatus();
+    };
+  },
+  call(msg){ this.start(); const id=++this.seq; return new Promise((res,rej)=>{ this.waits[id]={res,rej}; this.worker.postMessage({...msg,id}); }); },
+  onmsg(d){
+    if(d.type==='progress'){
+      const p=d.p; if(p.status==='progress' && p.file) this.prog[d.key][p.file]={l:p.loaded||0,t:p.total||0};
+      const f=Object.values(this.prog[d.key]); const L=f.reduce((a,b)=>a+b.l,0), T=f.reduce((a,b)=>a+b.t,0);
+      if(T && this.state[d.key]==='loading') setTrStatus(`⬇ [허깅페이스] ${d.key==='koen'?'한→영':'영→한'} 모델 내려받는 중… ${Math.round(L/T*100)}% (${Math.round(L/1048576)} / ${Math.round(T/1048576)}MB) — 화면을 끄지 마세요`,'warn');
+      return;
+    }
+    const w=this.waits[d.id]; if(!w) return; delete this.waits[d.id];
+    d.type==='error' ? w.rej(new Error(d.message)) : w.res(d);
+  },
+  load(key){
+    if(this.state[key]==='ready') return Promise.resolve();
+    if(!this.loadP[key]){
+      this.state[key]='loading'; this.prog[key]={}; refreshTrStatus();
+      this.loadP[key]=this.call({cmd:'load',key}).then(
+        ()=>{ this.state[key]='ready'; refreshTrStatus(); },
+        e=>{ this.state[key]='error'; this.err=e.message; this.loadP[key]=null; refreshTrStatus(); throw e; });
+    }
+    return this.loadP[key];
+  },
+  async translate(text,key){
+    if(this.state[key]!=='ready') await this.load(key);
+    return (await this.call({cmd:'tr',key,text})).text;
+  }
+};
+
+/* =========================================================
+   번역 엔진 ②: 크롬 내장 Translator API (PC 크롬 138+)
+   + 두 엔진을 하나로 묶는 Tr
    ========================================================= */
 const Tr = {
-  pairs:{}, creating:null, busy:false,
-  supported: ('Translator' in self),
-  // 버튼을 누른 순간(사용자 동작) 바로 호출해야 함
+  chromeOK: ('Translator' in self), pairs:{}, creating:null, busy:false,
+  engine(){ return S.trEngine==='chrome' ? 'chrome' : S.trEngine==='hf' ? 'hf' : (this.chromeOK ? 'chrome' : 'hf'); },
+  // 버튼을 누른 순간(사용자 동작)에 호출
   ensure(){
-    if(!this.supported) return Promise.resolve();
-    if(this.creating) return this.creating;
-    const mk = (s,t) => Translator.create({
+    if(this.engine()==='hf'){ HF.load(S.lang+other(S.lang)).catch(e=>console.warn('모델 준비 실패',e)); return; }
+    if(!this.chromeOK || this.creating) return;
+    const mk=(s,t)=>Translator.create({
       sourceLanguage:s, targetLanguage:t,
-      monitor(m){ m.addEventListener('downloadprogress', e=>setTrStatus(`번역 모델 내려받는 중… ${Math.round(e.loaded*100)}%`,'warn')); }
-    }).then(tr=>{ this.pairs[s+t]=tr; }).catch(err=>{ console.warn('번역기 생성 실패',s,'→',t,err); });
-    this.creating = Promise.all([mk('ko','en'), mk('en','ko')]).then(()=>refreshTrStatus());
-    return this.creating;
+      monitor(m){ m.addEventListener('downloadprogress', e=>setTrStatus(`⬇ [크롬 내장] 번역 모델 내려받는 중… ${Math.round(e.loaded*100)}%`,'warn')); }
+    }).then(tr=>{ this.pairs[s+t]=tr; }).catch(err=>console.warn('번역기 생성 실패',s,'→',t,err));
+    this.creating=Promise.all([mk('ko','en'),mk('en','ko')]).then(()=>{ this.creating=null; refreshTrStatus(); });
   },
-  ready(s,t){ return !!this.pairs[s+t]; },
+  ready(s,t){ return this.engine()==='chrome' ? !!this.pairs[s+t] : HF.state[s+t]==='ready'; },
   async translate(text,s,t){
-    const tr=this.pairs[s+t]; if(!tr||!text) return null;
+    if(!text) return null;
+    const eng=this.engine();
+    if(eng==='chrome' && !this.pairs[s+t]) return null;
+    if(eng==='hf' && HF.state[s+t]==='none') return null;
     this.busy=true;
-    try{ return await tr.translate(text); }
+    try{ return eng==='chrome' ? await this.pairs[s+t].translate(text) : await HF.translate(text,s+t); }
     catch(e){ console.warn('번역 오류',e); return null; }
     finally{ this.busy=false; }
   }
 };
 function setTrStatus(msg,cls){ const el=$('trStatus'); el.textContent=msg; el.className='status '+(cls||''); }
 async function refreshTrStatus(){
-  if(!Tr.supported){ setTrStatus('❌ 이 기기·브라우저에는 내장 번역 기능이 없습니다 (PC용 크롬 138 이상 필요 — 아이패드·휴대폰은 미지원). 원문 자막만 표시됩니다.','bad'); return; }
-  const s=S.lang, t=other(s);
-  if(Tr.ready(s,t)){ setTrStatus(`✅ ${LANGS[s].name} → ${LANGS[t].name} 번역 준비됨`,'ok'); return; }
+  const s=S.lang, t=other(s), dir=`${LANGS[s].name} → ${LANGS[t].name}`;
+  $('btnTrLoad').hidden=true;
+  if(Tr.engine()==='hf'){
+    const key=s+t, st=HF.state[key], m=HF.models[key];
+    if(st==='ready'){ setTrStatus(`✅ [허깅페이스] ${dir} 번역 준비됨`,'ok'); return; }
+    if(st==='loading'){ setTrStatus(`⬇ [허깅페이스] ${dir} 모델 준비 중…`,'warn'); return; }
+    setTrStatus(`⬇ [허깅페이스] ${dir} 모델(${m.size})을 내려받아야 합니다. 한 번 받으면 다음부터는 빠르게 열립니다.${st==='error'?' ※ 지난번 실패: '+HF.err:''}${key==='enko'?' ※ 영→한은 대용량·느림, PC 권장':''}`, st==='error'?'bad':'warn');
+    $('btnTrLoad').hidden=false; $('btnTrLoad').textContent=`⬇ ${dir} 번역 모델 내려받기 (${m.size})`;
+    return;
+  }
+  if(!Tr.chromeOK){ setTrStatus('❌ 이 기기·브라우저에는 크롬 내장 번역이 없습니다. 번역 엔진을 "자동" 또는 "허깅페이스 모델"로 바꾸세요.','bad'); return; }
+  if(Tr.ready(s,t)){ setTrStatus(`✅ [크롬 내장] ${dir} 번역 준비됨`,'ok'); return; }
   try{
-    const a = await Translator.availability({sourceLanguage:s, targetLanguage:t});
-    const m = {
-      available:  [`✅ ${LANGS[s].name} → ${LANGS[t].name} 번역 사용 가능`,'ok'],
-      downloadable:[`⬇ 번역 모델을 처음 한 번 내려받아야 합니다. [테스트 시작] 또는 [발표 시작]을 누르면 자동으로 받습니다.`,'warn'],
-      downloading: [`⬇ 번역 모델 내려받는 중…`,'warn'],
-      unavailable: [`❌ 이 노트북에서는 ${LANGS[s].name} → ${LANGS[t].name} 번역을 쓸 수 없습니다. 원문만 표시됩니다.`,'bad']
+    const a=await Translator.availability({sourceLanguage:s, targetLanguage:t});
+    const m={
+      available:  [`✅ [크롬 내장] ${dir} 번역 사용 가능`,'ok'],
+      downloadable:[`⬇ [크롬 내장] 번역 모델을 처음 한 번 내려받아야 합니다. [테스트 시작] 또는 [발표 시작]을 누르면 자동으로 받습니다.`,'warn'],
+      downloading: [`⬇ [크롬 내장] 번역 모델 내려받는 중…`,'warn'],
+      unavailable: [`❌ [크롬 내장] 이 PC에서는 ${dir} 번역을 쓸 수 없습니다. 번역 엔진을 "허깅페이스 모델"로 바꾸세요.`,'bad']
     }[a] || [`번역 상태: ${a}`,''];
-    setTrStatus(m[0], m[1]);
+    setTrStatus(m[0],m[1]);
   }catch(e){ setTrStatus('번역 상태 확인 실패: '+e.message,'bad'); }
 }
+$('btnTrLoad').onclick=()=>{ readSetup(); Tr.ensure(); };
+document.querySelectorAll('input[name=tre]').forEach(r=>r.onchange=()=>{ S.trEngine=r.value; refreshTrStatus(); saveSoon(); });
 
 /* =========================================================
    음성인식 (크롬 내장 Web Speech API — 음성이 구글로 전송됨)
@@ -448,7 +554,7 @@ const Speech = {
 let lastInterimTr=0, interimSeq=0;
 async function maybeTranslateInterim(src, apply){
   const s=S.lang, t=other(s);
-  if(!S.translate||!Tr.ready(s,t)||Tr.busy) return;
+  if(!S.translate||Tr.engine()!=='chrome'||!Tr.ready(s,t)||Tr.busy) return;
   if(src.length<6||Date.now()-lastInterimTr<1000) return;
   lastInterimTr=Date.now(); const my=++interimSeq;
   const out=await Tr.translate(src,s,t);
@@ -490,6 +596,7 @@ function stopTest(){ testing=false; Speech.stop(); $('btnTest').textContent='�
 function readSetup(){
   S.lang = document.querySelector('input[name=lang]:checked').value;
   S.translate = $('optTranslate').checked;
+  S.trEngine = document.querySelector('input[name=tre]:checked').value;
   S.reserve = $('optReserve').checked;
   S.meta = {date:$('mDate').value, place:$('mPlace').value.trim(), org:$('mOrg').value.trim(), people:$('mPeople').value.trim()};
 }
@@ -543,16 +650,26 @@ async function onFinal(t){
   }
 }
 function renderCap(){
-  const cap=$('cap');
-  const last=S.entries.slice(-3);
-  const items=last.map((e,i)=>({...e, old: i<last.length-1 || !!S.interim}));
-  if(S.interim) items.push({...S.interim, lang:S.lang, interim:true});
-  const show=items.slice(-3);
-  cap.innerHTML = show.map(e=>`<div class="ent${e.old?' old':''}${e.interim?' interim':''}${e.imp?' imp':''}">
-     <div class="src"><span class="tag">${LANGS[e.lang].tag}</span>${esc(e.src)}</div>
-     ${S.translate&&e.tgt?`<div class="tgt"><span class="tag">${LANGS[other(e.lang)].tag}</span>${esc(e.tgt)}</div>`:''}
-   </div>`).join('');
-  cap.classList.toggle('empty', S.capHidden || show.length===0);
+  const N=3;
+  const last=S.entries.slice(-N);
+  // 위 칸: 원문
+  const srcItems=last.map(e=>({t:e.src, imp:e.imp}));
+  if(S.interim) srcItems.push({t:S.interim.src, interim:true});
+  const src=srcItems.slice(-N);
+  $('capSrc').innerHTML=src.map((x,i)=>`<div class="ln${i<src.length-1?' old':''}${x.interim?' interim':''}${x.imp?' imp':''}">${esc(x.t)}</div>`).join('');
+  // 아래 칸: 번역
+  const showTr=S.translate;
+  $('tgtBox').hidden=!showTr;
+  if(showTr){
+    const tgtItems=last.map(e=>({t:e.tgt, wait:!e.tgt, imp:e.imp}));
+    if(S.interim && S.interim.tgt) tgtItems.push({t:S.interim.tgt, interim:true});
+    const tgt=tgtItems.slice(-N);
+    $('capTgt').innerHTML=tgt.map((x,i)=>`<div class="ln${i<tgt.length-1?' old':''}${x.interim?' interim':''}${x.wait?' wait':''}${x.imp?' imp':''}">${x.wait?'…':esc(x.t)}</div>`).join('');
+  }
+  const L=LANGS[S.lang], T=LANGS[other(S.lang)];
+  $('lblSrc').textContent = S.lang==='ko' ? '발표 (한국어)' : 'Speaker (English)';
+  $('lblTgt').textContent = S.lang==='ko' ? 'English translation' : '한국어 번역';
+  $('cap').classList.toggle('empty', S.capHidden || src.length===0);
 }
 function applyCapSize(){
   document.documentElement.style.setProperty('--cap-size', S.capSize+'px');
@@ -568,7 +685,7 @@ function markImportant(){
 }
 function switchLang(){
   S.lang=other(S.lang); S.interim=null;
-  Speech.start(S.lang); renderCap(); saveSoon();
+  Speech.start(S.lang); if(S.translate) Tr.ensure(); renderCap(); saveSoon();
   toast(`발표 언어: ${LANGS[S.lang].name} → 자막 ${LANGS[other(S.lang)].name} 번역`,2500);
 }
 
@@ -720,6 +837,7 @@ function syncSetupMeta(){ $('mDate').value=S.meta.date; $('mPlace').value=S.meta
 function syncSetupOptions(){
   document.querySelector(`input[name=lang][value=${S.lang}]`).checked=true;
   $('optTranslate').checked=S.translate; $('optReserve').checked=S.reserve;
+  const te=document.querySelector(`input[name=tre][value=${S.trEngine||'auto'}]`); if(te) te.checked=true;
 }
 document.querySelectorAll('input[name=lang]').forEach(r=>r.onchange=()=>{ S.lang=r.value; refreshTrStatus(); });
 $('btnStart').onclick=startPresent;
@@ -739,7 +857,7 @@ $('btnGoMinutes').onclick=()=>{ readSetup(); openMinutes(); };
     $('restoreInfo').innerHTML=`${esc(saved.meta?.org||'(기관 미입력)')} · 기록 ${saved.entries?.length||0}문장 · 자료 ${esc(saved.pdfName||'없음')} · 마지막 저장 ${when}`;
     $('restore').hidden=false;
     const apply=async()=>{
-      Object.assign(S,{lang:saved.lang||'ko',translate:saved.translate!==false,reserve:!!saved.reserve,meta:saved.meta||S.meta,entries:saved.entries||[],page:saved.page||1,capSize:saved.capSize||26});
+      Object.assign(S,{lang:saved.lang||'ko',translate:saved.translate!==false,trEngine:saved.trEngine||'auto',reserve:saved.reserve!==false,meta:saved.meta||S.meta,entries:saved.entries||[],page:saved.page||1,capSize:saved.capSize||26});
       syncSetupMeta(); syncSetupOptions(); refreshTrStatus();
       const f=await idbGet('pdf'); if(f&&f.data){ const pg=S.page; await loadPdf(f.data,f.name); S.page=pg; }
       $('restore').hidden=true;
