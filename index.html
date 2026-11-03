@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.5.1 | 2026-11-03 | Whisper 말하는 중 미리 보기(그래픽 가속일 때, 한·영 같은 조건), 그래픽 가속이면 쉼 0.42초·최대 6초, 완결 문장(…that. / …you.) 잘못 붙던 것 수정, 파일 이름도 용어로
+  index v0.5.2 | 2026-11-03 | 미리 보기가 확정 받아쓰기를 밀어내던 문제: 간격을 받아쓰기 속도에 맞춤, 두 번째 미리 보기부터 언어 판별 생략, 밀리면 20초 쉼, 밀림 안내는 1분에 한 번
+  v0.5.1 | 2026-11-03 | Whisper 말하는 중 미리 보기(그래픽 가속일 때, 한·영 같은 조건), 그래픽 가속이면 쉼 0.42초·최대 6초, 완결 문장(…that. / …you.) 잘못 붙던 것 수정, 파일 이름도 용어로
   v0.5.0 | 2026-11-03 | 진단에 크롬 번역 상태(언어팩 available/downloadable 등)·내려받기 % 표시, 발표 중 내려받기 진행 안내
   v0.4.9 | 2026-11-03 | 150MB 넘는 PPTX는 파일 전체를 메모리에 올리지 않고 큰 미디어를 뺀 가벼운 사본으로 엶(1.6GB PPTX에서 번역기가 멈추던 원인)
   v0.4.8 | 2026-11-03 | 번역기를 준비 화면에서 미리 만듦(첫 클릭), 응답 없으면 20초 뒤 다시 시도, 100MB 넘는 자료는 이어서 하기용 보관 생략(메모리 절약)
@@ -20,7 +21,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.5.1</title>
+<title>발표 통역 자막 도우미 v0.5.2</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -155,7 +156,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.5.1 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.5.2 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -307,7 +308,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.5.1',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.5.2',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1709,9 +1710,9 @@ self.onmessage = e => {
       if(d.cmd==='load'){ await loadLid(); await loadAsr(d.model); self.postMessage({ id:d.id, type:'ok', device:used, why:why.join(' / ') }); return; }
       if(d.cmd==='asr'){
         const t0=performance.now();
-        const s = await detect(d.audio); const tl=performance.now();
+        const s = d.lang ? {ko:0,en:0} : await detect(d.audio); const tl=performance.now();   // v0.5.2: 미리 보기 두 번째부터는 언어 판별을 건너뜀(계산 절반)
         const margin = s.ko - s.en;
-        const lang = (Math.abs(margin) < 0.6 && d.prev) ? d.prev : (margin > 0 ? 'ko' : 'en');   // 아주 애매할 때만 직전 언어 (v0.4.2: 1.5→0.6, 영어 중간의 짧은 한국어도 잡게)
+        const lang = d.lang || ((Math.abs(margin) < 0.6 && d.prev) ? d.prev : (margin > 0 ? 'ko' : 'en'));   // 아주 애매할 때만 직전 언어 (v0.4.2: 1.5→0.6, 영어 중간의 짧은 한국어도 잡게)
         const r = await asr(d.audio, { task:'transcribe', language: lang==='ko' ? 'korean' : 'english' });
         self.postMessage({ id:d.id, type:'ok', text:(r.text||'').trim(), lang, margin, ms:Math.round(performance.now()-t0), lidMs:Math.round(tl-t0) });
       }
@@ -1766,7 +1767,8 @@ const Whisper = {
       e=>{ this.state='error'; this.err=e.message; this.loadP=null; refreshAsrStatus(); throw e; });
     return this.loadP;
   },
-  transcribe(f32,prev){ return this.call({cmd:'asr',audio:f32,prev},[f32.buffer]); },
+  transcribe(f32,prev,lang){ return this.call({cmd:'asr',audio:f32,prev,lang},[f32.buffer]); },
+  avgMs:600, pvHold:0, lagWarnAt:0,
 
   /* ---- 마이크 + 말 끊기(VAD) ---- */
   ctx:null, stream:null, node:null, src:null, running:false, handlers:{},
@@ -1813,7 +1815,7 @@ const Whisper = {
       v.floor = v.floor*0.97 + Math.min(rms,0.05)*0.03;
       v.pre.push(fr); if(v.pre.length>10) v.pre.shift();                       // 말 시작 전 0.3초
       v.voiced = rms>th ? v.voiced+1 : 0;
-      if(v.voiced>=3){ v.speaking=true; v.buf=v.pre.slice(); v.pre=[]; v.silent=0; v.loud=0; v.lastPv=0; this.handlers.listening?.(true); }
+      if(v.voiced>=3){ v.speaking=true; v.buf=v.pre.slice(); v.pre=[]; v.silent=0; v.loud=0; v.lastPv=0; v.pvLang=''; this.handlers.listening?.(true); }
     } else {
       v.buf.push(fr); v.rms.push(rms);
       v.lvl = rms>v.lvl ? v.lvl*0.8+rms*0.2 : v.lvl*0.995+rms*0.005;          // 말소리 크기(천천히 따라감)
@@ -1823,14 +1825,14 @@ const Whisper = {
       if(v.silent>=sil && v.buf.length>=50) this.endSeg();                     // 1.5초 미만 조각은 다음 말과 함께 (짧은 조각은 Whisper가 잘못 듣기 쉬움)
       else if(v.silent>=40) this.endSeg();                                     // 짧은 말이라도 1.2초 조용하면 보냄
       else if(sec>=maxSec) this.cutAtValley();                                 // 쉬지 않고 이어지면 가장 조용한 곳을 골라 자름
-      else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=40) this.previewNow();   // v0.5.1: 말하는 중 1.2초마다 미리 받아쓰기
+      else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.ceil(this.avgMs*2.5/30))) this.previewNow();   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
     }
   },
   previewNow(){
     const v=this.vad, fr=v.buf; v.lastPv=fr.length;
     const a=new Float32Array(fr.length*480); fr.forEach((f,i)=>a.set(f,i*480)); const sec=a.length/16000;
     this.pv=true;
-    this.transcribe(a,this.prevLang).then(r=>{ this.pv=false; if(this.vad.speaking && !this.busy && !whBad(r.text,sec)) this.handlers.preview?.(r.text,r.lang); }).catch(()=>{ this.pv=false; });
+    this.transcribe(a,this.prevLang,v.pvLang||undefined).then(r=>{ this.pv=false; if(this.vad.speaking && !v.pvLang) v.pvLang=r.lang; if(this.vad.speaking && !this.busy && !whBad(r.text,sec)) this.handlers.preview?.(r.text,r.lang); }).catch(()=>{ this.pv=false; });
   },
   cutAtValley(){
     const v=this.vad, n=v.buf.length, from=Math.max(Math.floor(n*0.5), n-67);
@@ -1863,6 +1865,8 @@ const Whisper = {
         if(this.state!=='ready') await this.load();
         const r=await this.transcribe(a,this.prevLang);
         r.sec=sec; r.lag=Date.now()-q.end; r.backlog=this.queue.length;
+        this.avgMs=this.avgMs*0.7+r.ms*0.3;
+        if(r.lag>2500||r.backlog||q.merged){ this.pvHold=Date.now()+20000; }   // 밀리면 20초 동안 미리 보기를 쉬고 확정 받아쓰기에 집중
         if(!whBad(r.text,sec)){ this.prevLang=r.lang; this.handlers.text?.(r.text, r.lang, r); }
         else console.info('Whisper 결과 버림(지어낸 말·반복 의심):', r.text);
       }catch(e){ console.warn('Whisper 오류',e); this.handlers.error?.(e); }
@@ -2173,7 +2177,7 @@ function onWhisperText(text,lang,r){
   if(!text) return;
   const {done,rest}=splitSentences(text,lang);
   (rest?done.concat([rest]):done).forEach(x=>commitSentence(x,lang,r));
-  if(r && r.backlog>=2) toast('받아쓰기가 밀리고 있습니다 — ③에서 base 모델이 더 빠릅니다',3000);
+  if(r && (r.backlog>=2||r.lag>4000) && Date.now()-Whisper.lagWarnAt>60000){ Whisper.lagWarnAt=Date.now(); toast('말이 빠르게 이어져 받아쓰기가 잠시 밀렸습니다 — 미리 보기를 잠깐 쉬고 따라잡는 중',3000); }
   renderLive();
 }
 function setDot(st){ $('dot').className=st==='on'?'on':st==='err'?'err':''; earInd(); }
@@ -2508,7 +2512,7 @@ VB.report=function(){
   return {app:'index',v:VB.v,date:VB.d,at:new Date().toISOString(),ua:navigator.userAgent,screen:[screen.width,screen.height,window.devicePixelRatio||1],view:[innerWidth,innerHeight],
     deck:{type:D.type||'없음',pages:D.n||null,cur:D.cur,titles:(D.titles||[]).filter(Boolean).length},file:R.file?strip(R.file,['name']):null,
     pdf:R.pdf?strip(R.pdf,['pageMs','textChars']):null,pptx:R.pptx?strip(R.pptx,['navMs','textChars']):null,html:R.html?strip(R.html,['frameErrMsgs']):null,
-    terms:R.terms||null,asr:S.asr,whisper:{state:Whisper.state,model:Whisper.model,device:Whisper.device,why:Whisper.why||'',err:Whisper.err||'',coi:!!window.crossOriginIsolated,threads:navigator.hardwareConcurrency||0},speech:Speech.supported,
+    terms:R.terms||null,asr:S.asr,whisper:{avgMs:Math.round(Whisper.avgMs),state:Whisper.state,model:Whisper.model,device:Whisper.device,why:Whisper.why||'',err:Whisper.err||'',coi:!!window.crossOriginIsolated,threads:navigator.hardwareConcurrency||0},speech:Speech.supported,
     tr:{engine:Tr.engine(),chrome:Tr.chromeOK,avail:Tr.avail||null,dl:Tr.dl??null,pairs:Object.keys(Tr.pairs),creating:!!Tr.creating,lastErr:Tr.lastErr||'',hf:HF.state,err:HF.err||''},translate:S.translate,
     entries:S.entries.length,bySpeaker:['A','B','C'].map(k=>S.entries.filter(e=>e.sp===k).length),fixed:S.entries.filter(e=>e.raw).length,
     layout:VB.SET,wake:R.wake||'-',fullscreen:VB.isFull(),errors:VB.errors.slice(-10)};
@@ -2575,4 +2579,4 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
 </script>
 </body>
 </html>
-<!-- END index v0.5.1 -->
+<!-- END index v0.5.2 -->
