@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.4.5 | 2026-11-03 | 동영상이 든 PPTX가 안 열리던 문제(렌더러 32MB 제한): 미디어는 필요할 때만 꺼내고 제한 완화, 그래도 안 되면 큰 미디어만 빼고 표시
+  index v0.4.6 | 2026-11-03 | 장 그릴 때 미디어 제한 오류도 큰 미디어 빼고 다시 열기, 화면에 판 번호 표시, Whisper 조각 0.55초 쉼·1.5초 이상(짧은 조각 오인식 줄임)·최대 8초, 그래픽 가속 안 된 이유 표시
+  v0.4.5 | 2026-11-03 | 동영상이 든 PPTX가 안 열리던 문제(렌더러 32MB 제한): 미디어는 필요할 때만 꺼내고 제한 완화, 그래도 안 되면 큰 미디어만 빼고 표시
   v0.4.4 | 2026-11-03 | 받아쓰기 밀림 방지(쌓인 조각 한 번에), 귀 바꾸기 E(Whisper↔가벼운 모드), 번역기가 바꾼 자리표(Xa) 되돌림, 띄어 들린 자료 용어 붙이기, 따옴표·is로 끝난 문장 잘못 붙던 것 수정
   v0.4.3 | 2026-11-03 | 끊긴 말 이어 붙이기(조각 카드를 앞 카드에 붙여 한 문장으로 다시 번역), 한국어 번역 발표 말투(저는·여러분·~합니다), 기록에 들린 말 원본 보관
   v0.4.2 | 2026-11-03 | Whisper 빨리 뜨게: 0.45초 쉼에서 자름, 쉼 없이 이어지면 6초쯤 가장 조용한 곳에서 자름(전 12초), 배경 소리 속 쉼도 찾음, base 모델 추가, 짧은 한국어 끼어들기 인식, 카드에 '말 끝→표시' 초 표시
@@ -14,7 +15,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.4.5</title>
+<title>발표 통역 자막 도우미 v0.4.6</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -149,7 +150,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.5 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.6 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -300,12 +301,12 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.4.5',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.4.6',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
 VB.log=function(m){VB.logs.push(VB.tm()+' '+m);if(VB.logs.length>80)VB.logs.shift();};
-VB.err=function(m){VB.errors.push(VB.tm()+' '+m);if(VB.errors.length>30)VB.errors.shift();var b=VB.$('errbar');if(b){b.textContent='오류: '+m+' (화면 캡처해 주세요 · 눌러서 닫기)';b.className='show';}};
+VB.err=function(m){VB.errors.push(VB.tm()+' '+m);if(VB.errors.length>30)VB.errors.shift();var b=VB.$('errbar');if(b){b.textContent='오류(v'+VB.v+'): '+m+' (화면 캡처해 주세요 · 눌러서 닫기)';b.className='show';}};
 window.addEventListener('error',function(e){VB.err((e.message||'오류')+' ['+String(e.filename||'').split('/').pop()+':'+(e.lineno||0)+']');});
 window.addEventListener('unhandledrejection',function(e){var r=e.reason;VB.err('처리 안 된 오류: '+(r&&r.message?r.message:String(r)));});
 if(window.self!==window.top){try{document.documentElement.innerHTML='<body style="background:#fff;font:16px sans-serif;padding:30px">이 화면은 발표자료 칸 안에서 열리지 않습니다.</body>';}catch(e){}throw new Error('틀 안에서는 실행 안 함');}
@@ -496,7 +497,7 @@ function reset(){
   if(S.viewer){try{S.viewer.destroy();}catch(e){}S.viewer=null;}
   if(S.pdfDoc){try{S.pdfDoc.destroy();}catch(e){}S.pdfDoc=null;}
   S.pages.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});
-  S.type='';S.name='';S.n=0;S.cur=0;S.pages=[];S.texts=[];S.titles=[];S.buf=null;S.html='';S.shown=-1;S.frameReady=false;
+  S.type='';S.name='';S.stripped=false;S.n=0;S.cur=0;S.pages=[];S.texts=[];S.titles=[];S.buf=null;S.html='';S.shown=-1;S.frameReady=false;
   pbox.innerHTML='';img.removeAttribute('src');
   if(frame.hasAttribute('srcdoc'))frame.srcdoc='';
   $('thumb').hidden=true;$('thumb').removeAttribute('src');prog(0);
@@ -731,7 +732,7 @@ async function pptxOpen(){
     if(!st.removed.length)st=stripMedia(S.buf,20*MB);
     if(!st.removed.length)throw e;
     v=await tryOpen(st.buf);
-    if(R.pptx)R.pptx.mediaRemoved=st.removed.length;
+    if(R.pptx)R.pptx.mediaRemoved=st.removed.length; S.stripped=true; S.buf=st.buf;
     VB.toast('큰 동영상·미디어 '+st.removed.length+'개는 빼고 보여 줍니다(그 자리는 빈 칸). 재생이 필요하면 파워포인트에서 따로 트세요',6000);
   }
   return {v:v,ms:ms(t0)};
@@ -760,6 +761,12 @@ async function pptxGo(i){
       S.shown=k;R.pptx.navMs.push(ms(t0));if(R.pptx.navMs.length>300)R.pptx.navMs.shift();
     }
   }catch(e){
+    var em=String(e&&e.message||e);
+    if(g===S.gen&&/zip limit|memory|Array buffer allocation/i.test(em)&&!S.stripped){       // v0.4.6: 장을 그릴 때 미디어 제한에 걸려도 큰 미디어를 빼고 다시 열기
+      try{ var st=stripMedia(S.buf,IOS?50*MB:150*MB); if(!st.removed.length)st=stripMedia(S.buf,20*MB);
+        if(st.removed.length){ S.stripped=true; S.buf=st.buf; try{S.viewer&&S.viewer.destroy();}catch(x){} S.viewer=null; S.shown=-1; S.busy=false; if(R.pptx)R.pptx.mediaRemoved=st.removed.length;
+          VB.toast('큰 동영상·미디어 '+st.removed.length+'개는 빼고 보여 줍니다(그 자리는 빈 칸). 재생은 파워포인트에서 따로',6000); return pptxGo(S.want); } }catch(x){ VB.log('미디어 빼기 실패: '+x.message); }
+    }
     if(g===S.gen){showMsg('PPTX를 그리지 못했습니다: '+(e&&e.message||e)+' (PDF로 저장해서 올려 주세요)');VB.err('PPTX: '+(e&&e.message||e));}
   }
   S.busy=false;
@@ -1616,7 +1623,8 @@ let asr=null, asrKey=null, lidP=null, lidM=null, ids=null, used='';
 const prog = stage => p => self.postMessage({ type:'progress', stage, p:{ status:p.status, file:p.file, loaded:p.loaded, total:p.total } });
 let f16=null, gpu=null;
 // 그래픽 가속이 '있다고만' 하고 실제로는 못 쓰는 기기가 있어, 실제 장치를 받아 와서 확인
-async function gpuOK(){ if(gpu!==null) return gpu; try{ const a=self.navigator.gpu && await self.navigator.gpu.requestAdapter(); gpu=!!a; f16=!!(a && a.features.has('shader-f16')); }catch(_){ gpu=false; f16=false; } return gpu; }
+let why=[];
+async function gpuOK(){ if(gpu!==null) return gpu; try{ if(!self.navigator.gpu){ why.push('이 브라우저(작업자)에 WebGPU 없음'); gpu=false; return gpu; } const a=await self.navigator.gpu.requestAdapter(); gpu=!!a; f16=!!(a && a.features.has('shader-f16')); if(!a) why.push('그래픽 장치(어댑터)를 못 받음 — 크롬 그래픽 가속 꺼짐 또는 그래픽칩 차단 목록'); }catch(e){ gpu=false; f16=false; why.push('WebGPU 확인 오류: '+(e&&e.message||e)); } return gpu; }
 async function hasF16(){ await gpuOK(); return f16; }
 async function loadLid(){
   if(lidM) return;
@@ -1635,7 +1643,7 @@ async function loadAsr(key){
     if(o.device==='webgpu' && !(await gpuOK())) continue;
     if(o.f16 && !(await hasF16())) continue;
     try{ asr = await pipeline('automatic-speech-recognition', m.id, { dtype:o.dtype, device:o.device, progress_callback:prog('asr') }); asrKey=key; used=o.device; return; }
-    catch(e){ last=e; }
+    catch(e){ last=e; why.push(o.device+(o.f16?'(fp16)':'')+' 실패: '+String((e&&e.message)||e).slice(0,120)); }
   }
   throw last || new Error('모델을 불러오지 못했습니다');
 }
@@ -1650,7 +1658,7 @@ self.onmessage = e => {
   const d = e.data;
   chain = chain.then(async () => {
     try{
-      if(d.cmd==='load'){ await loadLid(); await loadAsr(d.model); self.postMessage({ id:d.id, type:'ok', device:used }); return; }
+      if(d.cmd==='load'){ await loadLid(); await loadAsr(d.model); self.postMessage({ id:d.id, type:'ok', device:used, why:why.join(' / ') }); return; }
       if(d.cmd==='asr'){
         const t0=performance.now();
         const s = await detect(d.audio); const tl=performance.now();
@@ -1706,7 +1714,7 @@ const Whisper = {
     if(this.loadP && this.model===model) return this.loadP;
     this.model=model; this.state='loading'; this.prog={}; refreshAsrStatus();
     this.loadP=this.call({cmd:'load',model}).then(
-      d=>{ this.state='ready'; this.device=d.device; refreshAsrStatus(); },
+      d=>{ this.state='ready'; this.device=d.device; this.why=d.why||''; refreshAsrStatus(); },
       e=>{ this.state='error'; this.err=e.message; this.loadP=null; refreshAsrStatus(); throw e; });
     return this.loadP;
   },
@@ -1718,7 +1726,7 @@ const Whisper = {
   vad:null, queue:[], busy:false, prevLang:'',
   // 클릭 직후(사용자 동작)에 호출: 오디오 장치 준비
   prepare(){ if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000}); }catch(_){ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); } } this.ctx.resume?.(); },
-  maxSec:6,
+  maxSec:8,
   resetVad(){ this.vad={speaking:false, buf:[], rms:[], pre:[], silent:0, voiced:0, floor:0.004, lvl:0, loud:0}; this.fpos=0; this.rsPos=0; },
   async startMic(handlers){
     this.handlers=handlers||{}; this.prepare(); this.resetVad(); this.queue=[]; this.running=true;
@@ -1763,7 +1771,8 @@ const Whisper = {
       v.lvl = rms>v.lvl ? v.lvl*0.8+rms*0.2 : v.lvl*0.995+rms*0.005;          // 말소리 크기(천천히 따라감)
       if(rms > Math.max(th, v.lvl*0.3)){ v.silent=0; v.loud++; } else v.silent++;   // 배경 소리가 있어도 말소리보다 확 작아지면 '쉼'
       const sec=v.buf.length*0.03;
-      if(v.silent>=15) this.endSeg();                                          // v0.4.2: 0.45초 쉬면 자름 (전 0.7초)
+      if(v.silent>=18 && v.buf.length>=50) this.endSeg();                      // v0.4.6: 0.55초 쉬면 자름, 단 1.5초 미만 조각은 다음 말과 함께 (짧은 조각은 Whisper가 잘못 듣기 쉬움)
+      else if(v.silent>=40) this.endSeg();                                     // 짧은 말이라도 1.2초 조용하면 보냄
       else if(sec>=this.maxSec) this.cutAtValley();                            // 쉬지 않고 이어지면 6초쯤에서 가장 조용한 곳을 골라 자름 (전 12초)
     }
   },
@@ -1815,7 +1824,7 @@ function refreshAsrStatus(){
   if(S.asr!=='whisper'){ setAsrStatus(Speech.supported?'브라우저 내장 음성인식: 아래에서 고른 언어로만 알아듣습니다(한·영 섞인 말은 약함). 말하는 중에도 글자가 뜹니다.':'❌ 이 브라우저는 내장 음성인식이 없습니다. Whisper를 고르거나 크롬으로 열어 주세요.',Speech.supported?'':'bad'); return; }
   const gpu = window.__gpuOK===true;
   const m=S.whModel||'small';
-  if(Whisper.state==='ready' && Whisper.model===m){ setAsrStatus(`✅ Whisper(${m}) 준비됨 — ${Whisper.device==='webgpu'?'그래픽 가속(WebGPU)':'CPU(WASM)'}로 실행. 언어 자동 판단, 한·영 섞어 말해도 됩니다.`,'ok'); $('btnWhLoad').hidden=true; return; }
+  if(Whisper.state==='ready' && Whisper.model===m){ setAsrStatus(`✅ Whisper(${m}) 준비됨 — ${Whisper.device==='webgpu'?'그래픽 가속(WebGPU)':'CPU(WASM)'}로 실행. 언어 자동 판단, 한·영 섞어 말해도 됩니다.${Whisper.device!=='webgpu'?' ⚠ CPU라 느릴 수 있음 — base 권장. 그래픽 가속이 안 된 이유: '+(Whisper.why||'알 수 없음'):''}`,Whisper.device==='webgpu'?'ok':'warn'); $('btnWhLoad').hidden=true; return; }
   if(Whisper.state==='loading'){ setAsrStatus('⬇ Whisper 준비 중…','warn'); return; }
   setAsrStatus(`⬇ Whisper(${m}) ${Whisper.sizes[m]}을 처음 한 번 내려받아야 합니다.${m==='turbo'&&!gpu?' ※ 이 기기는 그래픽 가속(WebGPU)이 없어 turbo가 매우 느립니다 — small을 권장':''}${Whisper.state==='error'?' ※ 지난번 실패: '+Whisper.err:''}`, Whisper.state==='error'?'bad':'warn');
 }
@@ -2432,7 +2441,7 @@ VB.report=function(){
   return {app:'index',v:VB.v,date:VB.d,at:new Date().toISOString(),ua:navigator.userAgent,screen:[screen.width,screen.height,window.devicePixelRatio||1],view:[innerWidth,innerHeight],
     deck:{type:D.type||'없음',pages:D.n||null,cur:D.cur,titles:(D.titles||[]).filter(Boolean).length},file:R.file?strip(R.file,['name']):null,
     pdf:R.pdf?strip(R.pdf,['pageMs','textChars']):null,pptx:R.pptx?strip(R.pptx,['navMs','textChars']):null,html:R.html?strip(R.html,['frameErrMsgs']):null,
-    terms:R.terms||null,asr:S.asr,whisper:{state:Whisper.state,model:Whisper.model,device:Whisper.device,err:Whisper.err||''},speech:Speech.supported,
+    terms:R.terms||null,asr:S.asr,whisper:{state:Whisper.state,model:Whisper.model,device:Whisper.device,why:Whisper.why||'',err:Whisper.err||'',coi:!!window.crossOriginIsolated,threads:navigator.hardwareConcurrency||0},speech:Speech.supported,
     tr:{engine:Tr.engine(),chrome:Tr.chromeOK,pairs:Object.keys(Tr.pairs),hf:HF.state,err:HF.err||''},translate:S.translate,
     entries:S.entries.length,bySpeaker:['A','B','C'].map(k=>S.entries.filter(e=>e.sp===k).length),fixed:S.entries.filter(e=>e.raw).length,
     layout:VB.SET,wake:R.wake||'-',fullscreen:VB.isFull(),errors:VB.errors.slice(-10)};
@@ -2498,4 +2507,4 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
 </script>
 </body>
 </html>
-<!-- END index v0.4.5 -->
+<!-- END index v0.4.6 -->
