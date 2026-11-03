@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.6.1 | 2026-11-03 | 'The'·'A'·'#' 빈말(번역 '…하면할수록')·폭주 차단: 받아쓰기 글자 수 상한, 빈말 버림·앞뒤 떼기, 힌트 결과가 빈말이면 힌트 없이 다시. 자동 귀 전환 기준 강화(한국어 중 영어 오판으로 Whisper로 넘어가던 문제)
+  index v0.6.2 | 2026-11-03 | 한국어에서 힌트 낱말을 그대로 지어내던 문제(원주시, 단계동…): 힌트는 영어에만·40토큰까지, 힌트 낱말이 줄줄이 나오면 힌트 없이 다시. 회의록에 문장마다 받아쓴 곳(Whisper/구글)·귀 방식·구글 오류 기록, *applause* 제거
+  v0.6.1 | 2026-11-03 | 'The'·'A'·'#' 빈말(번역 '…하면할수록')·폭주 차단: 받아쓰기 글자 수 상한, 빈말 버림·앞뒤 떼기, 힌트 결과가 빈말이면 힌트 없이 다시. 자동 귀 전환 기준 강화(한국어 중 영어 오판으로 Whisper로 넘어가던 문제)
   v0.6.0 | 2026-11-03 | 자동 귀: 한국어가 들리면 구글 음성인식으로, 영어가 들리면 Whisper로 저절로 전환(E 불필요). 구글 모드에서도 Whisper가 1.2초마다 언어만 확인. 상황 버튼 정리
   v0.5.3 | 2026-11-03 | 사용자 결정: 한국어 발표는 E(가벼운 모드·한국어)가 기본, Whisper 기본 small. 자료 용어를 Whisper 힌트로(시험: 이름 4개 모두 바로잡힘), 3글자 핵심어 교정, 반말→존댓말, 상황 버튼, 회의록에 말 끝→표시 기록
   v0.5.2 | 2026-11-03 | 미리 보기가 확정 받아쓰기를 밀어내던 문제: 간격을 받아쓰기 속도에 맞춤, 두 번째 미리 보기부터 언어 판별 생략, 밀리면 20초 쉼, 밀림 안내는 1분에 한 번
@@ -24,7 +25,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.6.1</title>
+<title>발표 통역 자막 도우미 v0.6.2</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -159,7 +160,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.6.1 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.6.2 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -315,7 +316,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.6.1',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.6.2',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1617,7 +1618,7 @@ const Speech = {
     const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
     const r = new SR();
     r.lang=LANGS[lang].bcp; r.continuous=true; r.interimResults=true; r.maxAlternatives=1;
-    r.onstart=()=>{ if(g!==this.gen) return; this.backoff=300; this.handlers.state('on'); };
+    r.onstart=()=>{ if(g!==this.gen) return; this.backoff=300; this.handlers.state('on'); VB.log('구글 음성인식 시작 '+lang); };
     r.onresult=e=>{
       if(g!==this.gen) return;
       let interim='';
@@ -1630,7 +1631,7 @@ const Speech = {
     };
     r.onerror=e=>{
       if(g!==this.gen) return;
-      console.warn('음성인식 오류:', e.error, e.message);
+      console.warn('음성인식 오류:', e.error, e.message); VB.log('구글 음성인식 오류: '+e.error); Speech.lastErr=e.error;
       if(e.error==='no-speech'||e.error==='aborted') return;
       if(e.error==='not-allowed'||e.error==='service-not-allowed'){
         this.want=false; this.handlers.state('err');
@@ -1722,10 +1723,10 @@ self.onmessage = e => {
         const margin = s.ko - s.en;
         const lang = d.lang || ((Math.abs(margin) < 0.6 && d.prev) ? d.prev : (margin > 0 ? 'ko' : 'en'));   // 아주 애매할 때만 직전 언어 (v0.4.2: 1.5→0.6, 영어 중간의 짧은 한국어도 잡게)
         let r, hinted=false; const maxTok=Math.min(200, Math.ceil(d.audio.length/16000*(lang==='ko'?9:6))+10);   // v0.6.1: 말한 길이에 맞게 글자 수 상한 → 'the the the…' 폭주로 받아쓰기가 수십 초 밀리던 문제 차단
-        if(d.prompt){                                                           // v0.5.3: 자료 용어를 '앞 문맥'으로 알려 줘 고유명사를 맞게 받아씀 (Whisper prompt)
+        if(d.prompt && lang==='en'){                                            // v0.6.2: 힌트는 영어에만 (한국어는 빠른 말에서 힌트 낱말을 그대로 지어냄) · v0.5.3: 자료 용어를 '앞 문맥'으로 알려 줘 고유명사를 맞게 받아씀 (Whisper prompt)
           try{
             const tk=asr.tokenizer, g=t=>tk.model.tokens_to_ids.get(t);
-            const pids=tk.encode(' '+d.prompt,{add_special_tokens:false}).slice(-80);
+            const pids=tk.encode(' '+d.prompt,{add_special_tokens:false}).slice(-40);
             const dec=[g('<|startofprev|>'),...pids,g('<|startoftranscript|>'),g(lang==='ko'?'<|ko|>':'<|en|>'),g('<|transcribe|>'),g('<|notimestamps|>')];
             if(dec.every(x=>x!=null)){ r=await asr(d.audio,{decoder_input_ids:[dec], max_new_tokens:maxTok}); hinted=true;
               let t=(r.text||'').trim(); const p=d.prompt.trim();
@@ -1733,7 +1734,8 @@ self.onmessage = e => {
               r={text:t.replace(/^[\\s,.]+/,'')}; }
           }catch(e){ r=null; }
         }
-        if(r && /^[\\s#.,!?…-]*((a|an|the|#)[\\s.,]*)*$/i.test(r.text||'')){ r=null; hinted=false; }   // v0.6.1: 힌트 때문에 'The'·'#'만 나오면 힌트 없이 다시
+        if(r && /^[\\s#.,!?…-]*((a|an|the|#)[\\s.,]*)*$/i.test(r.text||'')){ r=null; hinted=false; }
+        if(r && hinted){ const hs=d.prompt.split(/,\\s*/).filter(x=>x.length>1); let run=0,best=0; for(const w of (r.text||'').split(/[,\\s]+/)){ if(hs.some(h=>h.split(' ')[0]===w)){ run++; best=Math.max(best,run); } else run=0; } if(best>=3){ r=null; hinted=false; } }   // 힌트 낱말을 줄줄이 그대로 낸 경우 → 힌트 없이 다시   // v0.6.1: 힌트 때문에 'The'·'#'만 나오면 힌트 없이 다시
         if(!r) r = await asr(d.audio, { task:'transcribe', language: lang==='ko' ? 'korean' : 'english', max_new_tokens:maxTok });
         self.postMessage({ id:d.id, type:'ok', hinted, text:(r.text||'').trim(), lang, margin, ms:Math.round(performance.now()-t0), lidMs:Math.round(tl-t0) });
       }
@@ -2082,7 +2084,7 @@ function commitSentence(raw,lang,r){
   const fixed=Terms.correct(raw,lang);
   const prev=S.entries[S.entries.length-1];
   if(S.join!==false && shouldJoin(prev,fixed,lang)){ joinInto(prev,raw,fixed,r); return; }
-  const e={id:Date.now()+Math.random(), time:new Date().toISOString(), slide:slideNo(), at:D.type==='html'?'HTML':'', lang, sp:spFor(lang), src:punct(fixed,lang), tgt:'', imp:false, trMs:null};
+  const e={id:Date.now()+Math.random(), via:r?'W':'G', time:new Date().toISOString(), slide:slideNo(), at:D.type==='html'?'HTML':'', lang, sp:spFor(lang), src:punct(fixed,lang), tgt:'', imp:false, trMs:null};
   e.type=utterType(e.src,lang);
   if(fixed!==raw) e.raw=raw;
   if(r){ e.asrMs=r.ms; e.lag=r.lag; e.seg=Math.round(r.sec*10)/10; }
@@ -2229,13 +2231,13 @@ function onFinal(t){
 Whisper.lidFirst=()=>S.presenting && S.asr==='auto' && S.autoMode==='google';
 function autoToGoogle(){
   if(!Speech.supported || S.autoMode==='google') return;
-  S.autoMode='google'; S.lang='ko'; S.interim=null; utt={skip:0};
+  S.autoMode='google'; S.lang='ko'; S.interim=null; utt={skip:0}; VB.log('자동 귀 → 구글(한국어)');
   Speech.handlers={state:setDot,interim:onInterim,final:onFinalAuto}; Speech.start('ko');
   toast('한국어 감지 → 구글 음성인식으로 (말하는 중에도 표시)',2000); langInd(); earInd(); renderLive();
 }
 function autoToWhisper(segStart){
   if(S.autoMode!=='google') return;
-  S.autoMode='whisper'; S.dropAfter=(segStart||Date.now())-300; Speech.stop(); S.interim=null; utt={skip:0};
+  S.autoMode='whisper'; VB.log('자동 귀 → Whisper(영어 판별)'); S.dropAfter=(segStart||Date.now())-300; Speech.stop(); S.interim=null; utt={skip:0};
   setDot(Whisper.running?'on':''); toast('영어 감지 → Whisper로',1500); langInd(); earInd(); renderLive();
 }
 function onFinalAuto(t){                                                      // 구글 결과는 0.7초 기다렸다가: 그사이 영어로 판별되면 버림(영어를 한국어로 잘못 받아쓴 글)
@@ -2252,7 +2254,7 @@ function onWhisperText(text,lang,r){
     if(!/[A-Za-z]{2,}/.test(text) || /^(a|an|the|i|it|so|and|but|3rd)\.?$/i.test(text)) return;
   }
   let laugh=false;
-  text=text.replace(/[\[(]\s*([A-Za-z가-힣 ]{2,20})\s*[\])]/g,(m,w)=>{ if(/laugh|웃음/i.test(w)) laugh=true; return ' '; }).replace(/\s+/g,' ').trim();   // [APPLAUSE] (Laughter) 같은 효과음 표시는 빼고
+  text=text.replace(/\*\s*([A-Za-z가-힣 ]{2,20})\s*\*/g,' ($1) ').replace(/[\[(]\s*([A-Za-z가-힣 ]{2,20})\s*[\])]/g,(m,w)=>{ if(/laugh|웃음/i.test(w)) laugh=true; return ' '; }).replace(/\s+/g,' ').trim();   // [APPLAUSE] (Laughter) 같은 효과음 표시는 빼고
   if(laugh) toast('😄 (청중 웃음)',1500);
   if(!text) return;
   const {done,rest}=splitSentences(text,lang);
@@ -2520,13 +2522,14 @@ function buildTxt(){
   L.push('회의록 (발표 통역 자막 도우미)','');
   L.push('일시: '+metaDate(),'장소: '+S.meta.place,'기관: '+S.meta.org,'참석자: '+S.meta.people);
   L.push('화자: '+['A','B','C'].map(spLabel).join(' / '));
+  L.push('귀: '+({auto:'자동(한국어=구글, 영어=Whisper)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
   L.push('자료: '+(D.name||'-'),'기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
   L.push(speedLine()); if(lagLine()) L.push(lagLine());
   L.push('','==================== 요약 정보 ====================','');
   buildSummaryLines().forEach(x=>L.push(x));
   L.push('','==================== 전체 기록 ====================','');
   S.entries.forEach(e=>{
-    L.push(`[${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}] [${spLabel(e.sp)}] [${TYPE_NAME[e.type]||'설명'}]${e.imp?' ★중요':''}${e.lag!=null?` (말 끝→표시 ${((e.lag+(e.trMs||0))/1000).toFixed(1)}초, 조각 ${e.seg}초)`:''}${e.trMs!=null?` (번역 ${fmtSec(e.trMs)})`:''}`);
+    L.push(`[${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}] [${spLabel(e.sp)}] [${TYPE_NAME[e.type]||'설명'}]${e.via?' ['+(e.via==='W'?'Whisper':'구글')+']':''}${e.imp?' ★중요':''}${e.lag!=null?` (말 끝→표시 ${((e.lag+(e.trMs||0))/1000).toFixed(1)}초, 조각 ${e.seg}초)`:''}${e.trMs!=null?` (번역 ${fmtSec(e.trMs)})`:''}`);
     L.push(`원문(${LANGS[e.lang].tag}): ${TYPE_ICON[e.type]?TYPE_ICON[e.type]+' ':''}${e.src}`);
     if(e.raw) L.push(`  ※ 자동 교정 전: ${e.raw}`);
     if(e.tgt) L.push(`번역(${LANGS[other(e.lang)].tag}): ${e.tgt}`);
@@ -2671,4 +2674,4 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
 </script>
 </body>
 </html>
-<!-- END index v0.6.1 -->
+<!-- END index v0.6.2 -->
