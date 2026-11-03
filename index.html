@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.4.0 | 2026-11-03 | 원본 보기(view-bench v0.3.0: PDF·PPTX·HTML 그대로) + 화자별 통역 카드(언어로 A·B 자동, 1·2·3 키로 바꾸기) + 자료 용어 엔진을 작동본(귀·번역·회의록)에 합침. 리모컨 F5/Esc/B 대응
+  index v0.4.1 | 2026-11-03 | 가벼운 모드: 긴 말을 끊을 때 인식기를 껐다 켜지 않음(그 사이 말이 사라지던 문제), 9어절·15단어쯤 쉼표·접속어에서 더 빨리 카드로. 시험 안내 보강
+  v0.4.0 | 원본 보기(view-bench v0.3.0: PDF·PPTX·HTML 그대로) + 화자별 통역 카드(언어로 A·B 자동, 1·2·3 키로 바꾸기) + 자료 용어 엔진을 작동본(귀·번역·회의록)에 합침. 리모컨 F5/Esc/B 대응
   v0.3.x(10-31) | Whisper 언어 자동 판단, 2칸 자막 + 지금 주제, 자료 기반 자동 교정, 번역 비교, 회의록 요약
   부품: pdf.js 3.11.174 · @aiden0z/pptx-renderer 1.4.0 · Transformers.js 3.8.1(Whisper·opus-mt·NLLB, 웹 워커) — 모두 버전 고정 CDN
   손 용어집 없음(올린 자료의 글자가 기준). 서버·로그인·청중 송출 없음. 기록은 이 기기 브라우저에만 저장
@@ -9,7 +10,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.4.0</title>
+<title>발표 통역 자막 도우미 v0.4.1</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -144,7 +145,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.0 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.1 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -184,7 +185,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <label><input type="radio" name="asr" value="web" checked> 가벼운 모드 — 브라우저 내장 (아이패드·저사양), <b>음성이 브라우저 회사 서버로 전송</b>, 언어는 직접 선택</label>
 </div>
 <div class="row" id="whOpts" hidden><span class="sb">Whisper 크기</span><select id="whModel"><option value="small">small — 기본, 대부분의 노트북 (약 330MB)</option><option value="turbo">turbo — 그래픽 좋은 PC, 더 정확 (약 600MB, 테스트 필요)</option></select><button id="btnWhLoad" hidden>⬇ Whisper 내려받기</button></div>
-<div id="langRow"><div class="sb" style="margin-bottom:4px">가벼운 모드의 발표 언어 (발표 중 <kbd>L</kbd> 로 바꿈)</div>
+<div id="langRow"><div class="sb" style="margin-bottom:4px">가벼운 모드의 발표 언어 — <b>지금 말하는 사람의 언어와 꼭 맞춰야 합니다</b>(다르면 엉뚱한 글이 나옴). 발표 중 <kbd>L</kbd> 로 바꿈</div>
 <div class="radio"><label><input type="radio" name="lang" value="ko" checked> 한국어로 발표 → 영어 번역</label><label><input type="radio" name="lang" value="en"> 영어로 발표 → 한국어 번역</label></div></div>
 <div id="asrStatus" class="status"></div>
 </section>
@@ -292,7 +293,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.4.0',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.4.1',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1902,7 +1903,7 @@ async function translateEntry(e){
 }
 
 /* ---------- 가벼운 모드: 말하는 중 글자 + 문장 끝에서 끊기 ---------- */
-let utt={committed:0};
+let utt={skip:0};
 let lastInterimTr=0, interimSeq=0;
 async function maybeTranslateInterim(src,apply){
   const s=S.lang,t=other(s);
@@ -1912,32 +1913,41 @@ async function maybeTranslateInterim(src,apply){
   const out=await trTerms(src,s,t);
   if(my===interimSeq&&out) apply(out);
 }
+/* v0.4.1: 긴 말을 끊을 때 인식기를 멈췄다 다시 켜지 않음(그 사이 말이 사라지던 문제).
+   대신 이미 카드로 보낸 낱말 수(utt.skip)를 기억하고, 그다음 글자부터 이어서 보여 줌 */
+const words=s=>(s||'').split(/\s+/).filter(Boolean);
+function cutPoint(ws,lang){
+  const max=lang==='ko'?9:15;                                   // 한국어 9어절 · 영어 15단어쯤에서 끊음
+  if(ws.length<max+3) return 0;
+  for(let i=Math.min(ws.length-2,max+3);i>=Math.floor(max*0.6);i--){
+    const w=ws[i-1];
+    if(/[,，;:]$/.test(w) || (lang==='ko'&&/(고|며|서|는데|지만|면서|하고|으며)[,]?$/.test(w)) || (lang==='en'&&/^(and|but|so|because|which|that|when|where|while)$/i.test(ws[i]||''))) return i;
+  }
+  return max;
+}
 function onInterim(t){
   if(!S.presenting) return;
-  if(!t){ S.interim=null; renderLive(); return; }
-  const {done,rest}=splitSentences(t,S.lang);
+  const ws=words(t);
+  if(utt.skip>ws.length) utt.skip=ws.length;                    // 인식기가 앞부분을 고쳐 짧아진 경우
+  const {done,rest}=splitSentences(ws.slice(utt.skip).join(' '),S.lang);
   const ready=rest?done.length:Math.max(0,done.length-1);
-  while(utt.committed<ready){ commitSentence(done[utt.committed],S.lang); utt.committed++; }
-  const shown=done.slice(utt.committed).concat(rest?[rest]:[]).join(' ');
+  for(let i=0;i<ready;i++){ commitSentence(done[i],S.lang); utt.skip+=words(done[i]).length; }
+  let sw=words(done.slice(ready).concat(rest?[rest]:[]).join(' '));
+  const k=cutPoint(sw,S.lang);
+  if(k){ commitSentence(sw.slice(0,k).join(' '),S.lang); utt.skip+=k; sw=sw.slice(k); }
+  const shown=sw.join(' ');
   if(!shown){ S.interim=null; renderLive(); return; }
   const prev=S.interim;
   S.interim={src:shown,tgt:prev?prev.tgt:'',lang:S.lang};
   renderLive();
   maybeTranslateInterim(shown,out=>{ if(S.interim&&S.interim.src===shown){ S.interim.tgt=out; renderLive(); } });
-  const tooLong=S.lang==='ko'?shown.replace(/\s/g,'').length>70:shown.split(/\s+/).length>28;
-  if(tooLong) Speech.flush();
 }
 function onFinal(t){
   if(!S.presenting) return;
   S.interim=null; interimSeq++;
-  const {done,rest}=splitSentences(t,S.lang);
-  const all=rest?done.concat([rest]):done;
-  if(all.length>utt.committed) all.slice(utt.committed).forEach(x=>commitSentence(x,S.lang));
-  else if(all.length){
-    const lastF=all[all.length-1], lastC=S.entries[S.entries.length-1];
-    if(!lastC || VB.lev(VB.jamo(lastF),VB.jamo(lastC.raw||lastC.src),99) > VB.jamo(lastF).length*0.4) commitSentence(lastF,S.lang);
-  }
-  utt={committed:0};
+  const rest=words(t).slice(utt.skip).join(' ');
+  if(rest){ const {done,rest:r}=splitSentences(rest,S.lang); (r?done.concat([r]):done).forEach(x=>commitSentence(x,S.lang)); }
+  utt={skip:0};
   renderLive();
 }
 /* ---------- Whisper 모드: 말이 멈추면 한 덩어리씩 (언어 자동) ---------- */
@@ -1972,7 +1982,7 @@ function startPresent(){
   if(S.asr==='whisper') Whisper.prepare();          // 클릭 직후 오디오 준비
   if(S.translate) Tr.ensure();                      // 클릭 직후 번역 준비
   VB.goFull(true);
-  S.presenting=true; S.interim=null; utt={committed:0};
+  S.presenting=true; S.interim=null; utt={skip:0};
   VB.view('present');
   renderAll(); langInd(); earInd(); updateTopic();
   if(S.asr==='whisper') startWhisperEar();
@@ -2011,7 +2021,7 @@ function markImportant(){
 }
 function switchLang(){
   if(S.asr==='whisper'){ toast('Whisper 모드는 언어를 자동으로 판단합니다',2000); return; }
-  S.lang=other(S.lang); S.interim=null; utt={committed:0}; S.lastLang=S.lang;
+  S.lang=other(S.lang); S.interim=null; utt={skip:0}; S.lastLang=S.lang;
   if(S.override && S.override.lang!==S.lang) S.override=null;
   Speech.start(S.lang); if(S.translate) Tr.ensure(); renderLive(); langInd(); updateSpChips(); saveSoon();
   toast(`발표 언어: ${LANGS[S.lang].name} → ${LANGS[other(S.lang)].name} 번역 · 화자 ${spFor(S.lang)}`,2500);
@@ -2316,4 +2326,4 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
 </script>
 </body>
 </html>
-<!-- END index v0.4.0 -->
+<!-- END index v0.4.1 -->
