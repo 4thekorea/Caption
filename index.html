@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.4.1 | 2026-11-03 | 가벼운 모드: 긴 말을 끊을 때 인식기를 껐다 켜지 않음(그 사이 말이 사라지던 문제), 9어절·15단어쯤 쉼표·접속어에서 더 빨리 카드로. 시험 안내 보강
+  index v0.4.2 | 2026-11-03 | Whisper 빨리 뜨게: 0.45초 쉼에서 자름, 쉼 없이 이어지면 6초쯤 가장 조용한 곳에서 자름(전 12초), 배경 소리 속 쉼도 찾음, base 모델 추가, 짧은 한국어 끼어들기 인식, 카드에 '말 끝→표시' 초 표시
+  v0.4.1 | 2026-11-03 | 가벼운 모드: 긴 말을 끊을 때 인식기를 껐다 켜지 않음(그 사이 말이 사라지던 문제), 9어절·15단어쯤 쉼표·접속어에서 더 빨리 카드로. 시험 안내 보강
   v0.4.0 | 원본 보기(view-bench v0.3.0: PDF·PPTX·HTML 그대로) + 화자별 통역 카드(언어로 A·B 자동, 1·2·3 키로 바꾸기) + 자료 용어 엔진을 작동본(귀·번역·회의록)에 합침. 리모컨 F5/Esc/B 대응
   v0.3.x(10-31) | Whisper 언어 자동 판단, 2칸 자막 + 지금 주제, 자료 기반 자동 교정, 번역 비교, 회의록 요약
   부품: pdf.js 3.11.174 · @aiden0z/pptx-renderer 1.4.0 · Transformers.js 3.8.1(Whisper·opus-mt·NLLB, 웹 워커) — 모두 버전 고정 CDN
@@ -10,7 +11,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.4.1</title>
+<title>발표 통역 자막 도우미 v0.4.2</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -145,7 +146,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.1 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.2 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -184,7 +185,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <label><input type="radio" name="asr" value="whisper"> Whisper — 말마다 언어 자동 판단, 한·영 섞어도 됨, <b>음성이 기기 밖으로 안 나감</b> (PC 크롬 권장)</label>
 <label><input type="radio" name="asr" value="web" checked> 가벼운 모드 — 브라우저 내장 (아이패드·저사양), <b>음성이 브라우저 회사 서버로 전송</b>, 언어는 직접 선택</label>
 </div>
-<div class="row" id="whOpts" hidden><span class="sb">Whisper 크기</span><select id="whModel"><option value="small">small — 기본, 대부분의 노트북 (약 330MB)</option><option value="turbo">turbo — 그래픽 좋은 PC, 더 정확 (약 600MB, 테스트 필요)</option></select><button id="btnWhLoad" hidden>⬇ Whisper 내려받기</button></div>
+<div class="row" id="whOpts" hidden><span class="sb">Whisper 크기</span><select id="whModel"><option value="base">base — 가장 빠름, 정확도 조금 낮음 (약 150MB)</option><option value="small">small — 기본, 대부분의 노트북 (약 330MB)</option><option value="turbo">turbo — 그래픽 좋은 PC, 더 정확 (약 600MB, 테스트 필요)</option></select><button id="btnWhLoad" hidden>⬇ Whisper 내려받기</button></div>
 <div id="langRow"><div class="sb" style="margin-bottom:4px">가벼운 모드의 발표 언어 — <b>지금 말하는 사람의 언어와 꼭 맞춰야 합니다</b>(다르면 엉뚱한 글이 나옴). 발표 중 <kbd>L</kbd> 로 바꿈</div>
 <div class="radio"><label><input type="radio" name="lang" value="ko" checked> 한국어로 발표 → 영어 번역</label><label><input type="radio" name="lang" value="en"> 영어로 발표 → 한국어 번역</label></div></div>
 <div id="asrStatus" class="status"></div>
@@ -293,7 +294,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.4.1',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.4.2',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1536,6 +1537,9 @@ const WH_WORKER_CODE = `
 import { pipeline, AutoProcessor, WhisperForConditionalGeneration, Tensor, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
 env.allowLocalModels = false;
 const MODELS = {
+  base:  { id:'onnx-community/whisper-base',
+           opts:[{dtype:{encoder_model:'fp32', decoder_model_merged:'q4'}, device:'webgpu'},
+                 {dtype:'q8', device:'wasm'}] },
   small: { id:'onnx-community/whisper-small',
            opts:[{dtype:{encoder_model:'fp16', decoder_model_merged:'q4'}, device:'webgpu', f16:true},
                  {dtype:{encoder_model:'fp32', decoder_model_merged:'q4'}, device:'webgpu'},
@@ -1588,7 +1592,7 @@ self.onmessage = e => {
         const t0=performance.now();
         const s = await detect(d.audio); const tl=performance.now();
         const margin = s.ko - s.en;
-        const lang = (Math.abs(margin) < 1.5 && d.prev) ? d.prev : (margin > 0 ? 'ko' : 'en');   // 애매하면 직전 언어
+        const lang = (Math.abs(margin) < 0.6 && d.prev) ? d.prev : (margin > 0 ? 'ko' : 'en');   // 아주 애매할 때만 직전 언어 (v0.4.2: 1.5→0.6, 영어 중간의 짧은 한국어도 잡게)
         const r = await asr(d.audio, { task:'transcribe', language: lang==='ko' ? 'korean' : 'english' });
         self.postMessage({ id:d.id, type:'ok', text:(r.text||'').trim(), lang, margin, ms:Math.round(performance.now()-t0), lidMs:Math.round(tl-t0) });
       }
@@ -1609,7 +1613,7 @@ function whBad(text, sec){
 const Whisper = {
   worker:null, seq:0, waits:{}, state:'none', loadP:null, err:'', device:'', prog:{},
   model:'small',
-  sizes:{ small:'약 330MB (언어판별 포함)', turbo:'약 600MB (언어판별 포함)' },
+  sizes:{ base:'약 150MB (언어판별과 같은 모델)', small:'약 330MB (언어판별 포함)', turbo:'약 600MB (언어판별 포함)' },
   start(){
     if(this.worker) return;
     const url=URL.createObjectURL(new Blob([WH_WORKER_CODE],{type:'text/javascript'}));
@@ -1651,7 +1655,8 @@ const Whisper = {
   vad:null, queue:[], busy:false, prevLang:'',
   // 클릭 직후(사용자 동작)에 호출: 오디오 장치 준비
   prepare(){ if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000}); }catch(_){ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); } } this.ctx.resume?.(); },
-  resetVad(){ this.vad={speaking:false, buf:[], pre:[], silent:0, voiced:0, floor:0.004, started:0}; this.fpos=0; this.rsPos=0; },
+  maxSec:6,
+  resetVad(){ this.vad={speaking:false, buf:[], rms:[], pre:[], silent:0, voiced:0, floor:0.004, lvl:0, loud:0}; this.fpos=0; this.rsPos=0; },
   async startMic(handlers){
     this.handlers=handlers||{}; this.prepare(); this.resetVad(); this.queue=[]; this.running=true;
     this.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
@@ -1691,26 +1696,42 @@ const Whisper = {
       v.voiced = rms>th ? v.voiced+1 : 0;
       if(v.voiced>=3){ v.speaking=true; v.buf=v.pre.slice(); v.pre=[]; v.silent=0; v.loud=0; this.handlers.listening?.(true); }
     } else {
-      v.buf.push(fr); if(rms>th){ v.silent=0; v.loud++; } else v.silent++;
+      v.buf.push(fr); v.rms.push(rms);
+      v.lvl = rms>v.lvl ? v.lvl*0.8+rms*0.2 : v.lvl*0.995+rms*0.005;          // 말소리 크기(천천히 따라감)
+      if(rms > Math.max(th, v.lvl*0.3)){ v.silent=0; v.loud++; } else v.silent++;   // 배경 소리가 있어도 말소리보다 확 작아지면 '쉼'
       const sec=v.buf.length*0.03;
-      if(v.silent>=23 || sec>=12) this.endSeg();                               // 0.7초 쉬면, 또는 12초면 자름
+      if(v.silent>=15) this.endSeg();                                          // v0.4.2: 0.45초 쉬면 자름 (전 0.7초)
+      else if(sec>=this.maxSec) this.cutAtValley();                            // 쉬지 않고 이어지면 6초쯤에서 가장 조용한 곳을 골라 자름 (전 12초)
     }
   },
+  cutAtValley(){
+    const v=this.vad, n=v.buf.length, from=Math.max(Math.floor(n*0.5), n-67);
+    let best=n-2, bv=1e9;
+    for(let i=from;i<n-3;i++){ const e=v.rms[i]+v.rms[i+1]+v.rms[i+2]; if(e<bv){ bv=e; best=i+1; } }
+    const head=v.buf.slice(0,best);
+    v.buf=v.buf.slice(best); v.rms=v.rms.slice(best); v.loud=v.buf.length; v.silent=0;
+    this.emit(head);
+  },
   endSeg(){
-    const v=this.vad, frames=v.buf, loud=v.loud; v.speaking=false; v.buf=[]; v.silent=0; v.voiced=0;
+    const v=this.vad, loud=v.loud, frames=v.buf.slice(0, Math.max(1, v.buf.length-Math.max(0,v.silent-6)));   // 끝의 조용한 부분은 빼고 보냄(받아쓰기 빨라짐)
+    v.speaking=false; v.buf=[]; v.rms=[]; v.silent=0; v.voiced=0;
     this.handlers.listening?.(false);
     if(loud<10) return;                                                         // 0.3초도 안 되는 소리는 무시
+    this.emit(frames);
+  },
+  emit(frames){
     const a=new Float32Array(frames.length*480); frames.forEach((f,i)=>a.set(f,i*480));
-    this.queue.push(a); this.pump();
+    this.queue.push({a, end:Date.now()}); this.pump();
   },
   async pump(){
     if(this.busy) return; this.busy=true;
     while(this.queue.length){
-      const a=this.queue.shift(), sec=a.length/16000;
+      const q=this.queue.shift(), a=q.a, sec=a.length/16000;
       this.handlers.busy?.(true, this.queue.length);
       try{
         if(this.state!=='ready') await this.load();
         const r=await this.transcribe(a,this.prevLang);
+        r.sec=sec; r.lag=Date.now()-q.end; r.backlog=this.queue.length;
         if(!whBad(r.text,sec)){ this.prevLang=r.lang; this.handlers.text?.(r.text, r.lang, r); }
         else console.info('Whisper 결과 버림(지어낸 말·반복 의심):', r.text);
       }catch(e){ console.warn('Whisper 오류',e); this.handlers.error?.(e); }
@@ -1743,7 +1764,7 @@ const TYPE_NAME={joke:'농담',greeting:'인사',question:'질문',info:'설명'
 function utterType(src,lang){
   const s=(src||'').trim();
   if(/(하하|허허|ㅎㅎ|ㅋㅋ|\(웃음\)|\[웃음\]|haha|hehe|\blol\b|\(laugh|\[laugh|just kidding|농담)/i.test(s)) return 'joke';
-  if(/\?\s*$/.test(s) || /(나요|까요|습니까|니까|은가요|는가요|ㄹ까|을까|할까|건가요|던가요|세요\?)[.?!]*$/.test(s) || (lang==='en' && Q_RE_EN.test(s))) return 'question';
+  if(/\?\s*$/.test(s) || /(나요|까요|습니까|니까|은가요|는가요|ㄹ까|을까|할까|건가요|던가요|세요\?)[.?!]*$/.test(s) || (lang==='en' && Q_RE_EN.test(s) && !/[.!]$/.test(s))) return 'question';
   if(/(감사합니다|고맙습니다|환영합니다|반갑습니다|안녕하십니까|안녕하세요|수고하셨습니다|\bthank(s| you)\b|\bwelcome\b|nice to meet|good (morning|afternoon|evening)|\bpleasure\b|\bappreciate\b)/i.test(s)) return 'greeting';
   return 'info';
 }
@@ -1836,7 +1857,7 @@ function buildCard(c,e,live){
   if(e.terms&&e.terms.length) msg.push('자료 용어: '+e.terms.join(', '));
   nt.textContent=msg.join(' · ');
   if(!live){
-    mt.textContent=(e.time?new Date(e.time).toTimeString().slice(0,8):'')+' · '+(e.slide?'슬라이드 '+e.slide:(e.at||'자료 없음'))+' · '+(TYPE_NAME[e.type]||'설명')+(e.trMs!=null?' · 번역 '+(e.trMs/1000).toFixed(1)+'초':'')+(e.imp?' · ★ 중요':'');
+    mt.textContent=(e.time?new Date(e.time).toTimeString().slice(0,8):'')+' · '+(e.slide?'슬라이드 '+e.slide:(e.at||'자료 없음'))+' · '+(TYPE_NAME[e.type]||'설명')+(e.lag!=null?' · 말 끝→표시 '+((e.lag+(e.trMs||0))/1000).toFixed(1)+'초 (조각 '+e.seg+'초)':'')+(e.trMs!=null?' · 번역 '+(e.trMs/1000).toFixed(1)+'초':'')+(e.imp?' · ★ 중요':'');
   } else mt.textContent=e.note||'말하는 중…';
   bd.appendChild(org); if(!live||e.tgt||S.translate) bd.appendChild(tr); if(nt.textContent) bd.appendChild(nt); bd.appendChild(mt);
   c.appendChild(w); c.appendChild(bd);
@@ -1869,7 +1890,7 @@ function langInd(){
 }
 
 /* ---------- 문장 확정 → 교정 → 기록 → 번역 ---------- */
-function commitSentence(raw,lang){
+function commitSentence(raw,lang,r){
   raw=(raw||'').trim(); if(!raw) return;
   lang=lang||S.lang;
   if(S.override && S.override.lang!==lang) S.override=null;     // 언어가 바뀌면 화자는 다시 자동
@@ -1878,6 +1899,7 @@ function commitSentence(raw,lang){
   const e={id:Date.now()+Math.random(), time:new Date().toISOString(), slide:slideNo(), at:D.type==='html'?'HTML':'', lang, sp:spFor(lang), src:punct(fixed,lang), tgt:'', imp:false, trMs:null};
   e.type=utterType(e.src,lang);
   if(fixed!==raw) e.raw=raw;
+  if(r){ e.asrMs=r.ms; e.lag=r.lag; e.seg=Math.round(r.sec*10)/10; }
   const pr=Terms.protect(e.src,lang); if(pr.map.length) e.terms=pr.map.map(m=>m[1]);
   if(pendingImp){ e.imp=true; pendingImp=false; }
   S.entries.push(e); renderEntry(e); updateSpChips(); langInd(); saveSoon();
@@ -1951,11 +1973,16 @@ function onFinal(t){
   renderLive();
 }
 /* ---------- Whisper 모드: 말이 멈추면 한 덩어리씩 (언어 자동) ---------- */
-function onWhisperText(text,lang){
+function onWhisperText(text,lang,r){
   if(!S.presenting) return;
   S.interim=null;
+  let laugh=false;
+  text=text.replace(/[\[(]\s*([A-Za-z가-힣 ]{2,20})\s*[\])]/g,(m,w)=>{ if(/laugh|웃음/i.test(w)) laugh=true; return ' '; }).replace(/\s+/g,' ').trim();   // [APPLAUSE] (Laughter) 같은 효과음 표시는 빼고
+  if(laugh) toast('😄 (청중 웃음)',1500);
+  if(!text) return;
   const {done,rest}=splitSentences(text,lang);
-  (rest?done.concat([rest]):done).forEach(x=>commitSentence(x,lang));
+  (rest?done.concat([rest]):done).forEach(x=>commitSentence(x,lang,r));
+  if(r && r.backlog>=2) toast('받아쓰기가 밀리고 있습니다 — ③에서 base 모델이 더 빠릅니다',3000);
   renderLive();
 }
 function setDot(st){ $('dot').className=st==='on'?'on':st==='err'?'err':''; earInd(); }
@@ -2326,4 +2353,4 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
 </script>
 </body>
 </html>
-<!-- END index v0.4.1 -->
+<!-- END index v0.4.2 -->
