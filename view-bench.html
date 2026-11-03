@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  view-bench v0.2.0 | 2026-11-03 | v0.1.0이 590줄에서 잘려 작동하지 않던 것을 완성: HTML 열기·넘김 전달, 파일 올리기·끌어다 놓기, 화자별 통역 칸(v0.2.0 예시 재생 그대로), 시험 기록(JSON)
+  view-bench v0.2.1 | 2026-11-03 | HTML 안 나옴 수정: 격리 틀에서 막힌 저장소(localStorage·sessionStorage)·쿠키·주소 기록을 메모리로 대신, 자료 안 오류·빈 화면을 바깥에 알림
+  v0.2.0 | v0.1.0이 590줄에서 잘려 작동하지 않던 것을 완성: HTML 열기·넘김 전달, 파일 올리기·끌어다 놓기, 화자별 통역 칸(v0.2.0 예시 재생 그대로), 시험 기록(JSON)
   원본 표시: PDF = pdf.js 3.11.174 쪽마다 그림(index (1)과 같은 방식) · PPTX = @aiden0z/pptx-renderer 1.4.0 + 높이 맞춤 · HTML = 격리 틀(iframe sandbox, 같은 출처 권한 없음) + 넘김 키 전달
   시험 기록: 형식·크기·장 수·그리기 시간·눈 비교·오류만(파일 이름·내용은 기록 안 함). 배포 중인 index.html은 건드리지 않음. 마이크·모델 미연결
 -->
@@ -8,7 +9,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표통역기 — 원본 보기 시험 (view-bench v0.2.0)</title>
+<title>발표통역기 — 원본 보기 시험 (view-bench v0.2.1)</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -96,7 +97,7 @@ body.noside #present{grid-template-rows:minmax(0,1fr)}
 <noscript><div style="padding:12px;background:#e0596a;color:#fff">이 화면은 JavaScript가 필요합니다. 브라우저 설정에서 JavaScript를 켜 주세요.</div></noscript>
 <div id="errbar"></div>
 <main id="setup">
-<div class="row"><h1>발표통역기 · 원본 보기 시험</h1><span class="sp"></span><span class="chip">view-bench v0.2.0 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중… (이 글자가 안 바뀌면 스크립트가 막힌 것)</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표통역기 · 원본 보기 시험</h1><span class="sp"></span><span class="chip">view-bench v0.2.1 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중… (이 글자가 안 바뀌면 스크립트가 막힌 것)</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">이 페이지는 <b>원본 그대로 보기</b>와 <b>오른쪽 화자별 통역 칸</b>의 모양만 시험합니다. 마이크·번역은 쓰지 않습니다(오른쪽은 가명 예시 재생). 배포 중인 index.html과는 별개 파일입니다.</p>
 <section class="box">
 <h2>① 발표자료 올리기</h2>
@@ -129,9 +130,9 @@ body.noside #present{grid-template-rows:minmax(0,1fr)}
 <div id="stage">
 <img id="pdfImg" alt="" hidden>
 <div id="pptxBox" hidden></div>
-<iframe id="htmlFrame" title="HTML 발표자료" sandbox="allow-scripts" hidden></iframe>
+<iframe id="htmlFrame" title="HTML 발표자료" sandbox="allow-scripts allow-forms allow-modals allow-popups" hidden></iframe>
 <div id="stageMsg">슬라이드 없음 (통역 칸만 표시)</div>
-<div id="corner">view-bench v0.2.0 · 예시 재생(모델 미연결) · 마이크 안 씀</div>
+<div id="corner">view-bench v0.2.1 · 예시 재생(모델 미연결) · 마이크 안 씀</div>
 <div id="ctl"><button id="bPrev">◀</button><span id="pageNo">-</span><button id="bNext">▶</button><button id="bSide">통역 칸</button><button id="bFull">전체화면</button><button id="bBack">☰ 준비 화면</button></div>
 </div>
 <aside id="side">
@@ -144,7 +145,7 @@ body.noside #present{grid-template-rows:minmax(0,1fr)}
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.2.0',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false};
+var VB={v:'0.2.1',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -251,7 +252,12 @@ document.addEventListener('keydown',function(e){
 });
 window.addEventListener('message',function(e){
   var f=$('htmlFrame');if(!f||e.source!==f.contentWindow)return;
-  var d=e.data;if(!d||d.vb!=='key')return;
+  var d=e.data;if(!d)return;
+  if(d.vb==='err'){if(VB.R.html){VB.R.html.frameErrors=(VB.R.html.frameErrors||0)+1;(VB.R.html.frameErrMsgs=VB.R.html.frameErrMsgs||[]).length<5&&VB.R.html.frameErrMsgs.push(d.msg);}VB.log('HTML 자료 안 오류: '+d.msg);return;}
+  if(d.vb==='stat'){if(VB.R.html){VB.R.html.visibleChars=d.chars;VB.R.html.imgs=d.imgs;VB.R.html.canvas=d.canvas;}
+    if(!d.chars&&!d.imgs&&!d.canvas)VB.err('HTML 자료가 비어 보입니다'+((VB.R.html&&VB.R.html.frameErrMsgs)?' — 자료 안 오류: '+VB.R.html.frameErrMsgs[0]:'')+' · [진단 보기]를 캡처해 주세요');
+    return;}
+  if(d.vb!=='key')return;
   if(VB.R.html)VB.R.html.bridgeKeys=(VB.R.html.bridgeKeys||0)+1;
   VB.key(d.key,d.code,true);
 });
@@ -526,6 +532,15 @@ async function pptxGo(i){
 /* --- HTML: 격리 틀(sandbox=allow-scripts, 같은 출처 권한 없음) + 넘김 키 전달용 작은 스크립트 --- */
 function bridgeFn(){
   var syn=false;
+  /* 격리 틀에서는 브라우저 저장소가 막혀 자료 스크립트가 멈춤 → 메모리 저장소로 대신 */
+  function mem(){var d={};return {getItem:function(k){k=String(k);return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null;},setItem:function(k,v){d[String(k)]=String(v);},removeItem:function(k){delete d[String(k)];},clear:function(){d={};},key:function(i){return Object.keys(d)[i]||null;},get length(){return Object.keys(d).length;}};}
+  ['localStorage','sessionStorage'].forEach(function(n){var ok=true;try{var t=window[n];t.getItem('x');}catch(x){ok=false;}if(!ok){try{Object.defineProperty(window,n,{value:mem(),configurable:true});}catch(x){}}});
+  try{document.cookie;}catch(x){var ck='';try{Object.defineProperty(document,'cookie',{get:function(){return ck;},set:function(v){ck=String(v).split(';')[0];},configurable:true});}catch(y){}}
+  try{var H=window.history;['pushState','replaceState'].forEach(function(n){var f=H[n];H[n]=function(){try{return f.apply(H,arguments);}catch(x){}};});}catch(x){}
+  function post(o){try{window.parent.postMessage(o,'*');}catch(x){}}
+  window.addEventListener('error',function(e){post({vb:'err',msg:String(e.message||'오류').slice(0,200)});});
+  window.addEventListener('unhandledrejection',function(e){var r=e.reason;post({vb:'err',msg:String(r&&r.message?r.message:r).slice(0,200)});});
+  window.addEventListener('load',function(){setTimeout(function(){var b=document.body;post({vb:'stat',chars:b?(b.innerText||'').replace(/\s+/g,'').length:0,imgs:document.images.length,canvas:document.getElementsByTagName('canvas').length});},1500);});
   function fire(type,k,kc,tg){
     var ev;
     try{ev=new KeyboardEvent(type,{key:k,code:k,bubbles:true,cancelable:true});}catch(x){return true;}
@@ -820,4 +835,4 @@ VB.log('S4 시험 기록 연결됨');
 </script>
 </body>
 </html>
-<!-- END view-bench v0.2.0 -->
+<!-- END view-bench v0.2.1 -->
