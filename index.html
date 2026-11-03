@@ -1,5 +1,7 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.4.7 | 2026-11-03 | 크롬 번역기가 처음에 안 만들어지면 그대로 멈추던 문제: 문장마다·클릭마다 다시 시도, 준비되면 실패한 문장 다시 번역, 실패 이유 표시
+  index v0.4.9 | 2026-11-03 | 150MB 넘는 PPTX는 파일 전체를 메모리에 올리지 않고 큰 미디어를 뺀 가벼운 사본으로 엶(1.6GB PPTX에서 번역기가 멈추던 원인)
+  v0.4.8 | 2026-11-03 | 번역기를 준비 화면에서 미리 만듦(첫 클릭), 응답 없으면 20초 뒤 다시 시도, 100MB 넘는 자료는 이어서 하기용 보관 생략(메모리 절약)
+  v0.4.7 | 2026-11-03 | 크롬 번역기가 처음에 안 만들어지면 그대로 멈추던 문제: 문장마다·클릭마다 다시 시도, 준비되면 실패한 문장 다시 번역, 실패 이유 표시
   v0.4.6 | 2026-11-03 | 장 그릴 때 미디어 제한 오류도 큰 미디어 빼고 다시 열기, 화면에 판 번호 표시, Whisper 조각 0.55초 쉼·1.5초 이상(짧은 조각 오인식 줄임)·최대 8초, 그래픽 가속 안 된 이유 표시
   v0.4.5 | 2026-11-03 | 동영상이 든 PPTX가 안 열리던 문제(렌더러 32MB 제한): 미디어는 필요할 때만 꺼내고 제한 완화, 그래도 안 되면 큰 미디어만 빼고 표시
   v0.4.4 | 2026-11-03 | 받아쓰기 밀림 방지(쌓인 조각 한 번에), 귀 바꾸기 E(Whisper↔가벼운 모드), 번역기가 바꾼 자리표(Xa) 되돌림, 띄어 들린 자료 용어 붙이기, 따옴표·is로 끝난 문장 잘못 붙던 것 수정
@@ -16,7 +18,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.4.7</title>
+<title>발표 통역 자막 도우미 v0.4.9</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -151,7 +153,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.7 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.9 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -302,7 +304,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.4.7',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.4.9',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -498,7 +500,7 @@ function reset(){
   if(S.viewer){try{S.viewer.destroy();}catch(e){}S.viewer=null;}
   if(S.pdfDoc){try{S.pdfDoc.destroy();}catch(e){}S.pdfDoc=null;}
   S.pages.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});
-  S.type='';S.name='';S.stripped=false;S.n=0;S.cur=0;S.pages=[];S.texts=[];S.titles=[];S.buf=null;S.html='';S.shown=-1;S.frameReady=false;
+  S.type='';S.name='';S.stripped=false;S.slimRemoved=0;S.n=0;S.cur=0;S.pages=[];S.texts=[];S.titles=[];S.buf=null;S.html='';S.shown=-1;S.frameReady=false;
   pbox.innerHTML='';img.removeAttribute('src');
   if(frame.hasAttribute('srcdoc'))frame.srcdoc='';
   $('thumb').hidden=true;$('thumb').removeAttribute('src');prog(0);
@@ -659,9 +661,45 @@ async function pptxLib(){
   S.pptxLibMs=ms(t0);
   return S.mod;
 }
+/* v0.4.9 아주 큰 PPTX(동영상 등): 파일 전체를 메모리에 올리지 않고, 필요한 조각만 읽어 큰 미디어를 뺀 가벼운 사본을 만듦 */
+async function slimPptx(f,maxB){
+  var tl=Math.min(f.size,65600),tail=new Uint8Array(await f.slice(f.size-tl).arrayBuffer()),tv=new DataView(tail.buffer),eo=-1,i;
+  for(i=tl-22;i>=0;i--){if(tv.getUint32(i,true)===0x06054b50){eo=i;break;}}
+  if(eo<0)throw new Error('ZIP 구조를 찾지 못했습니다');
+  var cnt=tv.getUint16(eo+10,true),csz=tv.getUint32(eo+12,true),coff=tv.getUint32(eo+16,true);
+  if(cnt===0xFFFF||coff===0xFFFFFFFF)throw new Error('4GB 넘는 PPTX(ZIP64)는 PDF로 저장해 주세요');
+  var cd=new Uint8Array(await f.slice(coff,coff+csz).arrayBuffer()),dv=new DataView(cd.buffer),p=0,td=new TextDecoder('utf-8'),parts=[],cen=[],off=0,removed=[],kept=0;
+  for(var k=0;k<cnt;k++){
+    if(dv.getUint32(p,true)!==0x02014b50)throw new Error('ZIP 목록 오류');
+    var fl=dv.getUint16(p+8,true)&0x0800,m=dv.getUint16(p+10,true),tm=dv.getUint16(p+12,true),dt=dv.getUint16(p+14,true),crc=dv.getUint32(p+16,true),cs=dv.getUint32(p+20,true),us=dv.getUint32(p+24,true);
+    var nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lh=dv.getUint32(p+42,true),nameB=cd.slice(p+46,p+46+nl),name=td.decode(nameB);
+    var data;
+    if(/^ppt\/media\//.test(name)&&us>maxB){removed.push(name);m=0;crc=0;cs=0;us=0;data=new Uint8Array(0);}
+    else{var lhB=new DataView(await f.slice(lh,lh+30).arrayBuffer());var ds=lh+30+lhB.getUint16(26,true)+lhB.getUint16(28,true);data=f.slice(ds,ds+cs);kept+=cs;}
+    var L=new DataView(new ArrayBuffer(30));
+    L.setUint32(0,0x04034b50,true);L.setUint16(4,20,true);L.setUint16(6,fl,true);L.setUint16(8,m,true);L.setUint16(10,tm,true);L.setUint16(12,dt,true);
+    L.setUint32(14,crc,true);L.setUint32(18,cs,true);L.setUint32(22,us,true);L.setUint16(26,nl,true);L.setUint16(28,0,true);
+    parts.push(L.buffer,nameB,data);
+    var C=new DataView(new ArrayBuffer(46));
+    C.setUint32(0,0x02014b50,true);C.setUint16(4,20,true);C.setUint16(6,20,true);C.setUint16(8,fl,true);C.setUint16(10,m,true);C.setUint16(12,tm,true);C.setUint16(14,dt,true);
+    C.setUint32(16,crc,true);C.setUint32(20,cs,true);C.setUint32(24,us,true);C.setUint16(28,nl,true);C.setUint32(42,off,true);
+    cen.push(C.buffer,nameB);
+    off+=30+nl+cs;p+=46+nl+xl+cl;
+  }
+  var csz2=cen.reduce(function(a,x){return a+x.byteLength;},0),E=new DataView(new ArrayBuffer(22));
+  E.setUint32(0,0x06054b50,true);E.setUint16(8,cnt,true);E.setUint16(10,cnt,true);E.setUint32(12,csz2,true);E.setUint32(16,off,true);
+  var buf=await new Blob(parts.concat(cen,[E.buffer])).arrayBuffer();
+  return {buf:buf,removed:removed};
+}
 async function loadPptx(f,g){
   meta('PPTX 읽는 중… (처음 한 번 렌더러 약 2.3MB를 내려받습니다)');
-  var buf=await f.arrayBuffer();if(g!==S.gen)return;
+  var BIG=(IOS?60:150)*MB,buf;
+  if(f.size>BIG){                                                           // 큰 파일: 전체를 읽지 않고 큰 미디어만 뺀 사본으로
+    meta('큰 PPTX('+Math.round(f.size/MB)+'MB) — 큰 동영상·미디어를 빼고 가볍게 여는 중…');
+    var sl=await slimPptx(f,IOS?30*MB:60*MB);if(g!==S.gen)return;
+    buf=sl.buf;S.stripped=true;S.slimRemoved=sl.removed.length;
+  }else buf=await f.arrayBuffer();
+  if(g!==S.gen)return;
   var sc=null;
   try{sc=await pptxScan(buf);}catch(e){VB.log('PPTX 직접 읽기 실패: '+e.message);}
   if(g!==S.gen)return;
@@ -671,7 +709,8 @@ async function loadPptx(f,g){
   S.type='pptx';S.buf=buf;S.n=sc?sc.n:0;S.texts=sc?sc.texts:[];S.titles=sc?sc.titles:[];S.shown=-1;
   R.pptx={lib:'@aiden0z/pptx-renderer 1.4.0',libMs:S.pptxLibMs,countOwn:sc?sc.n:null,hidden:sc?sc.hidden:null,countLib:null,openMs:null,navMs:[],slideErr:0,nodeErr:0,textChars:sc?sc.texts.map(function(t){return t.length;}):[]};
   var nt=sc?sc.texts.filter(function(t){return !t;}).length:0;
-  meta('준비 완료: PPTX '+(S.n||'?')+'장 · '+R.file.sizeKB+'KB · 렌더러 받기 '+(S.pptxLibMs!=null?(S.pptxLibMs/1000).toFixed(1)+'초':'-')+(sc&&sc.hidden?' · 숨긴 슬라이드 '+sc.hidden+'장':'')+(nt?' · 글자 없는 장 '+nt+'개':'')+' · 그림은 [발표 시작] 때 그립니다');
+  if(S.slimRemoved){R.pptx.mediaRemoved=S.slimRemoved;}
+  meta('준비 완료: PPTX '+(S.n||'?')+'장 · '+R.file.sizeKB+'KB · 렌더러 받기 '+(S.pptxLibMs!=null?(S.pptxLibMs/1000).toFixed(1)+'초':'-')+(sc&&sc.hidden?' · 숨긴 슬라이드 '+sc.hidden+'장':'')+(nt?' · 글자 없는 장 '+nt+'개':'')+(S.slimRemoved?' · ⚠ 큰 동영상·미디어 '+S.slimRemoved+'개는 빼고 엶(그 자리는 빈 칸, 재생은 파워포인트에서)':'')+' · 그림은 [발표 시작] 때 그립니다');
   show(0);
 }
 function libCount(v){try{
@@ -1341,7 +1380,10 @@ function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('pcap',1)
 async function idbPut(key,val){ try{ const db=await idb(); await new Promise((res,rej)=>{ const tx=db.transaction('files','readwrite'); tx.objectStore('files').put(val,key); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }catch(e){ console.warn('자료 보관 실패',e); VB.log('자료 보관 실패: '+e.message); } }
 async function idbGet(key){ try{ const db=await idb(); return await new Promise((res,rej)=>{ const r=db.transaction('files').objectStore('files').get(key); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }catch(e){ return null; } }
 async function idbDel(key){ try{ const db=await idb(); db.transaction('files','readwrite').objectStore('files').delete(key); }catch(e){} }
-VB.onDeck=(f,type,name)=>{ f.arrayBuffer().then(buf=>idbPut('deck',{name:name||f.name||'자료',type,data:buf})).catch(()=>{}); saveSoon(); };
+VB.onDeck=(f,type,name)=>{
+  if(f.size>100*1024*1024){ idbDel('deck'); VB.log('자료가 100MB를 넘어 이어서 하기용 보관은 생략'); saveSoon(); return; }   // v0.4.8: 큰 자료(동영상 PPTX)는 메모리를 아끼려고 보관 안 함
+  f.arrayBuffer().then(buf=>idbPut('deck',{name:name||f.name||'자료',type,data:buf})).catch(()=>{}); saveSoon();
+};
 window.addEventListener('beforeunload',saveNow);
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) saveNow(); });
 setInterval(()=>{ if(S.presenting) saveNow(); },10000);
@@ -1480,7 +1522,8 @@ const Tr = {
       monitor(m){ m.addEventListener('downloadprogress', e=>setTrStatus(`⬇ [크롬 내장] 번역 모델 내려받는 중… ${Math.round(e.loaded*100)}%`,'warn')); }
     }).then(tr=>{ this.pairs[s+t]=tr; }).catch(err=>{ this.lastErr=String(err&&err.message||err).slice(0,160); console.warn('번역기 생성 실패',s,'→',t,err); VB.log('번역기 생성 실패 '+s+'→'+t+': '+this.lastErr); });
     const need=[['ko','en'],['en','ko']].filter(([s,t])=>!this.pairs[s+t]); if(!need.length) return;
-    this.creating=Promise.all(need.map(([s,t])=>mk(s,t))).then(()=>{ this.creating=null; refreshTrStatus(); if(typeof retryFailed==='function') retryFailed(); });
+    const all=Promise.all(need.map(([s,t])=>mk(s,t))).then(()=>{ if(typeof retryFailed==='function') retryFailed(); });
+    this.creating=within(all,20000).then(()=>{ if(need.some(([s,t])=>!this.pairs[s+t]) && !this.lastErr) this.lastErr='크롬 번역기가 20초 넘게 응답 없음(메모리 부족·모델 확인 중일 수 있음)'; this.creating=null; refreshTrStatus(); });   // v0.4.8: 응답이 없어도 20초 뒤 다시 시도할 수 있게
   },
   ready(s,t){ return this.engine()==='chrome' ? !!this.pairs[s+t] : HF.state[s+t]==='ready'; },
   async translate(text,s,t,force){
@@ -2209,6 +2252,7 @@ function switchEar(){
 }
 /* v0.4.7: 번역기가 준비되면 실패했던 최근 문장을 다시 번역 · 발표 중 클릭(사용자 동작)마다 준비 안 된 번역기를 다시 만듦 */
 function retryFailed(){ if(!S.translate) return; S.entries.slice(-15).filter(e=>e.trFail).forEach(e=>{ delete e.trFail; translateEntry(e); }); }
+document.addEventListener('pointerdown',()=>{ if(!S.presenting && $('optTranslate').checked && Tr.chromeOK && document.querySelector('input[name=tre]:checked').value!=='hf' && (!Tr.pairs.koen||!Tr.pairs.enko) && !Tr.creating) Tr.ensure(); },true);   // v0.4.8: 준비 화면에서 아무 데나 누르면 번역기를 미리 만들어 둠
 document.addEventListener('pointerdown',()=>{ if(S.presenting && S.translate && Tr.engine()==='chrome' && (!Tr.pairs.koen||!Tr.pairs.enko) && !Tr.creating) Tr.ensure(); },true);
 VB.H={end:endPresent,speaker:setSpeaker,lang:switchLang,imp:markImportant,ear:switchEar};
 $('bEar').addEventListener('click',switchEar);
@@ -2513,4 +2557,4 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
 </script>
 </body>
 </html>
-<!-- END index v0.4.7 -->
+<!-- END index v0.4.9 -->
