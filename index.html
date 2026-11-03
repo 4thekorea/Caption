@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.4.9 | 2026-11-03 | 150MB 넘는 PPTX는 파일 전체를 메모리에 올리지 않고 큰 미디어를 뺀 가벼운 사본으로 엶(1.6GB PPTX에서 번역기가 멈추던 원인)
+  index v0.5.0 | 2026-11-03 | 진단에 크롬 번역 상태(언어팩 available/downloadable 등)·내려받기 % 표시, 발표 중 내려받기 진행 안내
+  v0.4.9 | 2026-11-03 | 150MB 넘는 PPTX는 파일 전체를 메모리에 올리지 않고 큰 미디어를 뺀 가벼운 사본으로 엶(1.6GB PPTX에서 번역기가 멈추던 원인)
   v0.4.8 | 2026-11-03 | 번역기를 준비 화면에서 미리 만듦(첫 클릭), 응답 없으면 20초 뒤 다시 시도, 100MB 넘는 자료는 이어서 하기용 보관 생략(메모리 절약)
   v0.4.7 | 2026-11-03 | 크롬 번역기가 처음에 안 만들어지면 그대로 멈추던 문제: 문장마다·클릭마다 다시 시도, 준비되면 실패한 문장 다시 번역, 실패 이유 표시
   v0.4.6 | 2026-11-03 | 장 그릴 때 미디어 제한 오류도 큰 미디어 빼고 다시 열기, 화면에 판 번호 표시, Whisper 조각 0.55초 쉼·1.5초 이상(짧은 조각 오인식 줄임)·최대 8초, 그래픽 가속 안 된 이유 표시
@@ -18,7 +19,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.4.9</title>
+<title>발표 통역 자막 도우미 v0.5.0</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -153,7 +154,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.9 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.5.0 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -304,7 +305,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.4.9',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.5.0',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1519,7 +1520,7 @@ const Tr = {
     if(!this.chromeOK || this.creating) return;
     const mk=(s,t)=>Translator.create({
       sourceLanguage:s, targetLanguage:t,
-      monitor(m){ m.addEventListener('downloadprogress', e=>setTrStatus(`⬇ [크롬 내장] 번역 모델 내려받는 중… ${Math.round(e.loaded*100)}%`,'warn')); }
+      monitor(m){ m.addEventListener('downloadprogress', e=>{ Tr.dl=Math.round(e.loaded*100); setTrStatus(`⬇ [크롬 내장] 번역 모델 내려받는 중… ${Tr.dl}%`,'warn'); if(S.presenting) toast(`크롬 번역 모델 내려받는 중… ${Tr.dl}%`,1500); }); }
     }).then(tr=>{ this.pairs[s+t]=tr; }).catch(err=>{ this.lastErr=String(err&&err.message||err).slice(0,160); console.warn('번역기 생성 실패',s,'→',t,err); VB.log('번역기 생성 실패 '+s+'→'+t+': '+this.lastErr); });
     const need=[['ko','en'],['en','ko']].filter(([s,t])=>!this.pairs[s+t]); if(!need.length) return;
     const all=Promise.all(need.map(([s,t])=>mk(s,t))).then(()=>{ if(typeof retryFailed==='function') retryFailed(); });
@@ -2492,7 +2493,7 @@ VB.report=function(){
     deck:{type:D.type||'없음',pages:D.n||null,cur:D.cur,titles:(D.titles||[]).filter(Boolean).length},file:R.file?strip(R.file,['name']):null,
     pdf:R.pdf?strip(R.pdf,['pageMs','textChars']):null,pptx:R.pptx?strip(R.pptx,['navMs','textChars']):null,html:R.html?strip(R.html,['frameErrMsgs']):null,
     terms:R.terms||null,asr:S.asr,whisper:{state:Whisper.state,model:Whisper.model,device:Whisper.device,why:Whisper.why||'',err:Whisper.err||'',coi:!!window.crossOriginIsolated,threads:navigator.hardwareConcurrency||0},speech:Speech.supported,
-    tr:{engine:Tr.engine(),chrome:Tr.chromeOK,pairs:Object.keys(Tr.pairs),creating:!!Tr.creating,lastErr:Tr.lastErr||'',hf:HF.state,err:HF.err||''},translate:S.translate,
+    tr:{engine:Tr.engine(),chrome:Tr.chromeOK,avail:Tr.avail||null,dl:Tr.dl??null,pairs:Object.keys(Tr.pairs),creating:!!Tr.creating,lastErr:Tr.lastErr||'',hf:HF.state,err:HF.err||''},translate:S.translate,
     entries:S.entries.length,bySpeaker:['A','B','C'].map(k=>S.entries.filter(e=>e.sp===k).length),fixed:S.entries.filter(e=>e.raw).length,
     layout:VB.SET,wake:R.wake||'-',fullscreen:VB.isFull(),errors:VB.errors.slice(-10)};
 };
@@ -2552,9 +2553,10 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
     };
   }
   refreshTrStatus(); refreshAsrStatus(); updateSpChips(); langInd(); earInd();
+  if(Tr.chromeOK){ try{ Tr.avail={}; for(const [s,t] of [['ko','en'],['en','ko']]) Tr.avail[s+t]=await within(Translator.availability({sourceLanguage:s,targetLanguage:t}),5000)||'응답 없음'; VB.log('크롬 번역 상태 '+JSON.stringify(Tr.avail)); }catch(e){ Tr.avail={err:e.message}; } }
   VB.log('앱 준비됨');
 })();
 </script>
 </body>
 </html>
-<!-- END index v0.4.9 -->
+<!-- END index v0.5.0 -->
