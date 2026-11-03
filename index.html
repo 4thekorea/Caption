@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.4.4 | 2026-11-03 | 받아쓰기 밀림 방지(쌓인 조각 한 번에), 귀 바꾸기 E(Whisper↔가벼운 모드), 번역기가 바꾼 자리표(Xa) 되돌림, 띄어 들린 자료 용어 붙이기, 따옴표·is로 끝난 문장 잘못 붙던 것 수정
+  index v0.4.5 | 2026-11-03 | 동영상이 든 PPTX가 안 열리던 문제(렌더러 32MB 제한): 미디어는 필요할 때만 꺼내고 제한 완화, 그래도 안 되면 큰 미디어만 빼고 표시
+  v0.4.4 | 2026-11-03 | 받아쓰기 밀림 방지(쌓인 조각 한 번에), 귀 바꾸기 E(Whisper↔가벼운 모드), 번역기가 바꾼 자리표(Xa) 되돌림, 띄어 들린 자료 용어 붙이기, 따옴표·is로 끝난 문장 잘못 붙던 것 수정
   v0.4.3 | 2026-11-03 | 끊긴 말 이어 붙이기(조각 카드를 앞 카드에 붙여 한 문장으로 다시 번역), 한국어 번역 발표 말투(저는·여러분·~합니다), 기록에 들린 말 원본 보관
   v0.4.2 | 2026-11-03 | Whisper 빨리 뜨게: 0.45초 쉼에서 자름, 쉼 없이 이어지면 6초쯤 가장 조용한 곳에서 자름(전 12초), 배경 소리 속 쉼도 찾음, base 모델 추가, 짧은 한국어 끼어들기 인식, 카드에 '말 끝→표시' 초 표시
   v0.4.1 | 2026-11-03 | 가벼운 모드: 긴 말을 끊을 때 인식기를 껐다 켜지 않음(그 사이 말이 사라지던 문제), 9어절·15단어쯤 쉼표·접속어에서 더 빨리 카드로. 시험 안내 보강
@@ -13,7 +14,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.4.4</title>
+<title>발표 통역 자막 도우미 v0.4.5</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -148,7 +149,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.4 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.5 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -299,7 +300,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.4.4',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.4.5',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -676,16 +677,63 @@ function libCount(v){try{
   if(typeof v.slideCount==='number')return v.slideCount;
   if(typeof v.getSlideCount==='function')return v.getSlideCount();
 }catch(e){}return null;}
+/* v0.4.5 동영상·큰 미디어가 든 PPTX: 렌더러 기본 제한(파일 하나 32MB)에 걸려 안 열리던 문제
+   ① 미디어는 그 장을 보여 줄 때만 꺼내고(lazyMedia) 제한을 넉넉히 → ② 그래도 실패하면 큰 미디어만 뺀 사본으로 다시 열기 */
+var IOS=/iP(ad|hone|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+var MB=1024*1024;
+function bigLimits(){return IOS?{maxEntries:8000,maxEntryUncompressedBytes:200*MB,maxTotalUncompressedBytes:600*MB,maxMediaBytes:500*MB,maxConcurrency:4}
+                            :{maxEntries:8000,maxEntryUncompressedBytes:600*MB,maxTotalUncompressedBytes:1600*MB,maxMediaBytes:1500*MB,maxConcurrency:8};}
+/* 큰 미디어(maxB 초과)를 빈 파일로 바꾼 PPTX 사본 만들기 (압축된 데이터는 그대로 옮김) */
+function stripMedia(buf,maxB){
+  var u8=new Uint8Array(buf),dv=new DataView(buf),n=u8.length,eo=-1,i;
+  for(i=n-22;i>=0&&i>=n-65600;i--){if(dv.getUint32(i,true)===0x06054b50){eo=i;break;}}
+  if(eo<0)throw new Error('ZIP 구조 없음');
+  var cnt=dv.getUint16(eo+10,true),p=dv.getUint32(eo+16,true),td=new TextDecoder('utf-8'),parts=[],cen=[],off=0,removed=[];
+  for(var k=0;k<cnt;k++){
+    if(dv.getUint32(p,true)!==0x02014b50)throw new Error('ZIP 목록 오류');
+    var fl=dv.getUint16(p+8,true),m=dv.getUint16(p+10,true),tm=dv.getUint16(p+12,true),dt=dv.getUint16(p+14,true),crc=dv.getUint32(p+16,true),cs=dv.getUint32(p+20,true),us=dv.getUint32(p+24,true);
+    var nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lh=dv.getUint32(p+42,true),nameB=u8.slice(p+46,p+46+nl),name=td.decode(nameB);
+    var ds=lh+30+dv.getUint16(lh+26,true)+dv.getUint16(lh+28,true),data=u8.subarray(ds,ds+cs);
+    if(/^ppt\/media\//.test(name)&&us>maxB){removed.push(name);m=0;crc=0;cs=0;us=0;data=new Uint8Array(0);}
+    fl&=0x0800;                                                           // 데이터 뒤 크기 표시(bit 3) 없이 다시 씀
+    var L=new DataView(new ArrayBuffer(30));
+    L.setUint32(0,0x04034b50,true);L.setUint16(4,20,true);L.setUint16(6,fl,true);L.setUint16(8,m,true);L.setUint16(10,tm,true);L.setUint16(12,dt,true);
+    L.setUint32(14,crc,true);L.setUint32(18,cs,true);L.setUint32(22,us,true);L.setUint16(26,nl,true);L.setUint16(28,0,true);
+    parts.push(new Uint8Array(L.buffer),nameB,data);
+    var C=new DataView(new ArrayBuffer(46));
+    C.setUint32(0,0x02014b50,true);C.setUint16(4,20,true);C.setUint16(6,20,true);C.setUint16(8,fl,true);C.setUint16(10,m,true);C.setUint16(12,tm,true);C.setUint16(14,dt,true);
+    C.setUint32(16,crc,true);C.setUint32(20,cs,true);C.setUint32(24,us,true);C.setUint16(28,nl,true);C.setUint32(42,off,true);
+    cen.push(new Uint8Array(C.buffer),nameB);
+    off+=30+nl+data.length;p+=46+nl+xl+cl;
+  }
+  var csz=cen.reduce(function(a,x){return a+x.length;},0),E=new DataView(new ArrayBuffer(22));
+  E.setUint32(0,0x06054b50,true);E.setUint16(8,cnt,true);E.setUint16(10,cnt,true);E.setUint32(12,csz,true);E.setUint32(16,off,true);
+  var out=new Uint8Array(off+csz+22),q=0;
+  parts.concat(cen,[new Uint8Array(E.buffer)]).forEach(function(x){out.set(x,q);q+=x.length;});
+  return {buf:out.buffer,removed:removed};
+}
 async function pptxOpen(){
   var M=S.mod,t0=now(),v;
-  pbox.innerHTML='';
-  var box=document.createElement('div');box.id='pptxInner';pbox.appendChild(box);   // 렌더러가 높이를 바꿔도 바깥 칸은 화면 전체 유지
-  var opt={renderMode:'slide',fitMode:'contain',externalMedia:'block',pdfjs:false,
-    onSlideError:function(i,e){if(R.pptx)R.pptx.slideErr++;VB.err('PPTX '+(i+1)+'장 그리기 오류: '+(e&&e.message||e));},
-    onNodeError:function(id,e){if(R.pptx)R.pptx.nodeErr++;VB.log('PPTX 개체 오류('+id+'): '+(e&&e.message||e));}};
-  if(M.RECOMMENDED_ZIP_LIMITS)opt.zipLimits=M.RECOMMENDED_ZIP_LIMITS;
-  if(typeof M.PptxViewer.open==='function')v=await M.PptxViewer.open(S.buf,box,opt);
-  else{v=new M.PptxViewer(box,opt);await v.open(S.buf,{renderMode:'slide'});}
+  async function tryOpen(buf){
+    pbox.innerHTML='';
+    var box=document.createElement('div');box.id='pptxInner';pbox.appendChild(box);   // 렌더러가 높이를 바꿔도 바깥 칸은 화면 전체 유지
+    var opt={renderMode:'slide',fitMode:'contain',externalMedia:'block',pdfjs:false,lazyMedia:true,zipLimits:bigLimits(),
+      onSlideError:function(i,e){if(R.pptx)R.pptx.slideErr++;VB.err('PPTX '+(i+1)+'장 그리기 오류: '+(e&&e.message||e));},
+      onNodeError:function(id,e){if(R.pptx)R.pptx.nodeErr++;VB.log('PPTX 개체 오류('+id+'): '+(e&&e.message||e));}};
+    if(typeof M.PptxViewer.open==='function')return await M.PptxViewer.open(buf,box,opt);
+    var w=new M.PptxViewer(box,opt);await w.open(buf,{renderMode:'slide',lazyMedia:true});return w;
+  }
+  try{v=await tryOpen(S.buf);}
+  catch(e){
+    var msg=String(e&&e.message||e);
+    VB.log('PPTX 첫 시도 실패: '+msg.slice(0,120));
+    var st=stripMedia(S.buf,IOS?50*MB:150*MB);
+    if(!st.removed.length)st=stripMedia(S.buf,20*MB);
+    if(!st.removed.length)throw e;
+    v=await tryOpen(st.buf);
+    if(R.pptx)R.pptx.mediaRemoved=st.removed.length;
+    VB.toast('큰 동영상·미디어 '+st.removed.length+'개는 빼고 보여 줍니다(그 자리는 빈 칸). 재생이 필요하면 파워포인트에서 따로 트세요',6000);
+  }
   return {v:v,ms:ms(t0)};
 }
 async function pptxGo(i){
@@ -2450,4 +2498,4 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
 </script>
 </body>
 </html>
-<!-- END index v0.4.4 -->
+<!-- END index v0.4.5 -->
