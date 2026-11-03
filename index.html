@@ -1,5 +1,7 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.5.2 | 2026-11-03 | 미리 보기가 확정 받아쓰기를 밀어내던 문제: 간격을 받아쓰기 속도에 맞춤, 두 번째 미리 보기부터 언어 판별 생략, 밀리면 20초 쉼, 밀림 안내는 1분에 한 번
+  index v0.6.0 | 2026-11-03 | 자동 귀: 한국어가 들리면 구글 음성인식으로, 영어가 들리면 Whisper로 저절로 전환(E 불필요). 구글 모드에서도 Whisper가 1.2초마다 언어만 확인. 상황 버튼 정리
+  v0.5.3 | 2026-11-03 | 사용자 결정: 한국어 발표는 E(가벼운 모드·한국어)가 기본, Whisper 기본 small. 자료 용어를 Whisper 힌트로(시험: 이름 4개 모두 바로잡힘), 3글자 핵심어 교정, 반말→존댓말, 상황 버튼, 회의록에 말 끝→표시 기록
+  v0.5.2 | 2026-11-03 | 미리 보기가 확정 받아쓰기를 밀어내던 문제: 간격을 받아쓰기 속도에 맞춤, 두 번째 미리 보기부터 언어 판별 생략, 밀리면 20초 쉼, 밀림 안내는 1분에 한 번
   v0.5.1 | 2026-11-03 | Whisper 말하는 중 미리 보기(그래픽 가속일 때, 한·영 같은 조건), 그래픽 가속이면 쉼 0.42초·최대 6초, 완결 문장(…that. / …you.) 잘못 붙던 것 수정, 파일 이름도 용어로
   v0.5.0 | 2026-11-03 | 진단에 크롬 번역 상태(언어팩 available/downloadable 등)·내려받기 % 표시, 발표 중 내려받기 진행 안내
   v0.4.9 | 2026-11-03 | 150MB 넘는 PPTX는 파일 전체를 메모리에 올리지 않고 큰 미디어를 뺀 가벼운 사본으로 엶(1.6GB PPTX에서 번역기가 멈추던 원인)
@@ -21,7 +23,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.5.2</title>
+<title>발표 통역 자막 도우미 v0.6.0</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -156,7 +158,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.5.2 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.6.0 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -191,14 +193,18 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <section class="box">
 <h2><span class="n">3</span>귀 (음성인식)</h2>
+<div class="row"><span class="sb">상황에 맞게 한 번에:</span><button data-preset="auto">해외 출장·브리핑 → 자동</button><button data-preset="ko">우리 한국어 발표만 → 가벼운 모드</button><button data-preset="secret">시청 내부 회의 → Whisper만 (음성 밖으로 안 나감)</button></div>
+<p class="sb"><b>자동</b>이면 E를 누를 필요가 없습니다. Whisper·가벼운 모드로 고정했을 때만 발표 중 <kbd>E</kbd> 로 둘 사이를 바꿉니다.</p>
 <div class="radio">
+<label><input type="radio" name="asr" value="auto" checked> <b>자동 (추천)</b> — 한국어가 들리면 구글 음성인식(정확·말하는 중 표시, ⚠ 음성 외부 전송), 영어가 들리면 Whisper(기기 안). E 키 필요 없음</label>
 <label><input type="radio" name="asr" value="whisper"> Whisper — 말마다 언어 자동 판단, 한·영 섞어도 됨, <b>음성이 기기 밖으로 안 나감</b> (PC 크롬 권장)</label>
-<label><input type="radio" name="asr" value="web" checked> 가벼운 모드 — 브라우저 내장 (아이패드·저사양), <b>음성이 브라우저 회사 서버로 전송</b>, 언어는 직접 선택</label>
+<label><input type="radio" name="asr" value="web"> 가벼운 모드 — 브라우저 내장 (아이패드·저사양), <b>음성이 브라우저 회사 서버로 전송</b>, 언어는 직접 선택</label>
 </div>
-<div class="row" id="whOpts" hidden><span class="sb">Whisper 크기</span><select id="whModel"><option value="base">base — 가장 빠름, 정확도 조금 낮음 (약 150MB)</option><option value="small">small — 기본, 대부분의 노트북 (약 330MB)</option><option value="turbo">turbo — 그래픽 좋은 PC, 더 정확 (약 600MB, 테스트 필요)</option></select><button id="btnWhLoad" hidden>⬇ Whisper 내려받기</button></div>
+<div class="row" id="whOpts" hidden><span class="sb">Whisper 크기</span><select id="whModel"><option value="base">base — 가장 빠름, 정확도 조금 낮음 (약 150MB)</option><option value="small" selected>small — 기본, 그래픽 가속 PC 권장 (약 330MB)</option><option value="turbo">turbo — 그래픽 좋은 PC, 더 정확 (약 600MB, 테스트 필요)</option></select><button id="btnWhLoad" hidden>⬇ Whisper 내려받기</button></div>
 <div id="langRow"><div class="sb" style="margin-bottom:4px">가벼운 모드의 발표 언어 — <b>지금 말하는 사람의 언어와 꼭 맞춰야 합니다</b>(다르면 엉뚱한 글이 나옴). 발표 중 <kbd>L</kbd> 로 바꿈</div>
 <div class="radio"><label><input type="radio" name="lang" value="ko" checked> 한국어로 발표 → 영어 번역</label><label><input type="radio" name="lang" value="en"> 영어로 발표 → 한국어 번역</label></div></div>
 <div id="asrStatus" class="status"></div>
+<label class="check"><input type="checkbox" id="optHint" checked> 자료 용어를 Whisper에 힌트로 주기 — 받아쓰기 전에 자료 속 핵심어(원주시·그림책센터 등)를 알려 줘 고유명사를 맞게 받아씀</label>
 <label class="check"><input type="checkbox" id="optPreview" checked> 말하는 중에도 미리 보기 — Whisper가 1.2초마다 미리 받아써 흐린 카드로 보여 주고, 말이 끝나면 확정 (그래픽 가속일 때만 작동)</label>
 <label class="check"><input type="checkbox" id="optJoin" checked> 끊긴 말 이어 붙이기 — 앞 카드가 문장 중간에서 끊겼으면(소문자·접속어로 이어짐, ~다·~요로 안 끝남) 새 카드 대신 앞 카드에 붙여 한 문장으로 다시 번역</label>
 </section>
@@ -308,7 +314,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.5.2',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.6.0',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1156,7 +1162,7 @@ const Terms={
     }
     const inPhrase=new Set(); for(const v of this.vocabEn.values()) if(v.kind==='phrase') enKey(v.form).split(' ').forEach(w=>inPhrase.add(w));
     for(const [k,v] of this.vocabEn) if(v.kind==='word' && inPhrase.has(k)) v.fz=false;
-    for(const [k,v] of this.vocab){ v.fz = !v.form.includes(' ') && v.n>=2 && (k.length>=4 || PROPER.test(k)); }
+    for(const [k,v] of this.vocab){ v.fz = !v.form.includes(' ') && v.n>=2 && (k.length>=4 || PROPER.test(k) || (k.length===3 && v.n>=5)); }   // v0.5.3: 자료에 5번 이상 나온 3글자 핵심어(그림책)도 교정 대상
     // 자료 속 짝: 가장 많이 나온 영어 표기 하나로. 짝의 양쪽 말은 항상 바로잡기 대상
     this.pairs=[...pm.values()].map(v=>{ let en=v.en,n=v.n; for(const a in v.alt) if(v.alt[a]>n){ en=a; n=v.alt[a]; } return [v.ko,en,v.n]; });
     for(const [ko,en] of this.pairs){
@@ -1179,7 +1185,7 @@ const Terms={
       if(!v.fz || v.j[0]!==j[0] || Math.abs(v.j.length-j.length)>max) continue;
       if(k.includes(core)||core.includes(k)) continue;
       const fw=v.form.split(' ')[0]; if(v.form.includes(' ') && core.startsWith(fw) && !this.pairs.some(p=>p[0]===v.form)) continue;
-      if(k.length<=4 && k.length===core.length && k.slice(0,-1)===core.slice(0,-1) && (k.length<=3 || lev(jamo(k.slice(-1)),jamo(core.slice(-1)),2)>1)) continue;   // 짧은 낱말 끝 글자만 다름(시민↔시청)은 다른 말. 4글자는 자모 하나 차이(중닙↔중립)만 고침
+      if(k.length<=4 && k.length===core.length && k.slice(0,-1)===core.slice(0,-1) && ((k.length<=3 && !(k.length===3 && v.n>=5)) || lev(jamo(k.slice(-1)),jamo(core.slice(-1)),2)>1)) continue;   // 그림착→그림책은 고치고 그림체(자모 2개 차이)는 그대로   // 짧은 낱말 끝 글자만 다름(시민↔시청)은 다른 말. 4글자는 자모 하나 차이(중닙↔중립)만 고침
       const d=lev(j,v.j,max); if(d>max) continue;
       if(d<bd || (d===bd && v.n>best.n)){ bd=d; best=v; }
     }
@@ -1197,7 +1203,7 @@ const Terms={
         if(core.length<3||core.length>12) continue;
         const ex=this.vocab.get(core);
         if(ex){ if(n>1) hit=[ex.form+fixP(ex.form,p)+tail,n]; continue; }
-        if(VERBISH.test(core)) continue;
+        if(VERBISH.test(core) && !(core.length>=4 && (()=>{ const b=this.nearest(core); return b && b.form.length>=4 && !VERBISH.test(b.form); })())) continue;   // v0.5.3: '요네스고'처럼 ~고로 끝나도 4글자 이상 자료 용어와 아주 비슷하면 고침
         if(n>1){
           const mid=toks.slice(i,i+n-1);
           if(mid.some(w=>stripP(w)[1]) || this.vocab.has(stripP(toks[i])[0])) continue;
@@ -1358,10 +1364,10 @@ const LS_KEY='pcap.session.v2', LS_OLD='pcap.session.v1';
 const SPK_DEF={A:'발표자',B:'상대 기관',C:'질문자'};
 
 const S={
-  lang:'ko', translate:true, trEngine:'auto', autoFix:true, keepEn:true, asr:'web', whModel:'small',
+  lang:'ko', translate:true, trEngine:'auto', autoFix:true, keepEn:true, asr:'auto', whModel:'small',
   meta:{date:'',place:'',org:'',people:''}, entries:[], aiSummary:'',
   speakers:{A:'',B:'',C:''}, override:null, lastLang:'',
-  presenting:false, interim:null
+  presenting:false, interim:null, autoMode:'whisper', dropAfter:0
 };
 VB.opt=S;     // 자료 용어 엔진이 '자동 교정'·'원어 유지' 설정을 읽음
 const spName=k=>(S.speakers[k]||'').trim()||SPK_DEF[k]||k;
@@ -1371,7 +1377,7 @@ let saveTimer=null;
 function saveSoon(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,400); }
 function saveNow(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify({
-    v:2, savedAt:Date.now(), lang:S.lang, translate:S.translate, trEngine:S.trEngine, autoFix:S.autoFix, keepEn:S.keepEn, asr:S.asr, whModel:S.whModel, join:S.join, preview:S.preview, polite:S.polite, yeoreobun:S.yeoreobun,
+    v:4, savedAt:Date.now(), lang:S.lang, translate:S.translate, trEngine:S.trEngine, autoFix:S.autoFix, keepEn:S.keepEn, asr:S.asr, whModel:S.whModel, join:S.join, preview:S.preview, hint:S.hint, polite:S.polite, yeoreobun:S.yeoreobun,
     meta:S.meta, entries:S.entries, aiSummary:S.aiSummary, speakers:S.speakers, deckName:D.name||'', page:D.cur||0
   })); }catch(e){ console.warn('자동 저장 실패',e); }
 }
@@ -1519,7 +1525,7 @@ const Tr = {
   engine(){ return S.trEngine==='chrome' ? 'chrome' : S.trEngine==='hf' ? 'hf' : (this.chromeOK ? 'chrome' : 'hf'); },
   // 버튼을 누른 순간(사용자 동작)에 호출
   ensure(){
-    if(this.engine()==='hf'){ const keys=S.asr==='whisper'?['koen'].concat(HF.state.enko==='ready'?[]:[]):[S.lang+other(S.lang)]; keys.forEach(k=>HF.load(k).catch(e=>console.warn('모델 준비 실패',e))); return; }   // 영→한(850MB)은 메모리 부족 위험 → 직접 내려받을 때만
+    if(this.engine()==='hf'){ const keys=S.asr!=='web'?['koen'].concat(HF.state.enko==='ready'?[]:[]):[S.lang+other(S.lang)]; keys.forEach(k=>HF.load(k).catch(e=>console.warn('모델 준비 실패',e))); return; }   // 영→한(850MB)은 메모리 부족 위험 → 직접 내려받을 때만
     if(!this.chromeOK || this.creating) return;
     const mk=(s,t)=>Translator.create({
       sourceLanguage:s, targetLanguage:t,
@@ -1708,13 +1714,26 @@ self.onmessage = e => {
   chain = chain.then(async () => {
     try{
       if(d.cmd==='load'){ await loadLid(); await loadAsr(d.model); self.postMessage({ id:d.id, type:'ok', device:used, why:why.join(' / ') }); return; }
+      if(d.cmd==='lid'){ const s=await detect(d.audio); const m=s.ko-s.en; self.postMessage({ id:d.id, type:'ok', lang:m>0?'ko':'en', margin:m }); return; }   // v0.6.0: 언어만 판별 (자동 귀)
       if(d.cmd==='asr'){
         const t0=performance.now();
         const s = d.lang ? {ko:0,en:0} : await detect(d.audio); const tl=performance.now();   // v0.5.2: 미리 보기 두 번째부터는 언어 판별을 건너뜀(계산 절반)
         const margin = s.ko - s.en;
         const lang = d.lang || ((Math.abs(margin) < 0.6 && d.prev) ? d.prev : (margin > 0 ? 'ko' : 'en'));   // 아주 애매할 때만 직전 언어 (v0.4.2: 1.5→0.6, 영어 중간의 짧은 한국어도 잡게)
-        const r = await asr(d.audio, { task:'transcribe', language: lang==='ko' ? 'korean' : 'english' });
-        self.postMessage({ id:d.id, type:'ok', text:(r.text||'').trim(), lang, margin, ms:Math.round(performance.now()-t0), lidMs:Math.round(tl-t0) });
+        let r, hinted=false;
+        if(d.prompt){                                                           // v0.5.3: 자료 용어를 '앞 문맥'으로 알려 줘 고유명사를 맞게 받아씀 (Whisper prompt)
+          try{
+            const tk=asr.tokenizer, g=t=>tk.model.tokens_to_ids.get(t);
+            const pids=tk.encode(' '+d.prompt,{add_special_tokens:false}).slice(-80);
+            const dec=[g('<|startofprev|>'),...pids,g('<|startoftranscript|>'),g(lang==='ko'?'<|ko|>':'<|en|>'),g('<|transcribe|>'),g('<|notimestamps|>')];
+            if(dec.every(x=>x!=null)){ r=await asr(d.audio,{decoder_input_ids:[dec]}); hinted=true;
+              let t=(r.text||'').trim(); const p=d.prompt.trim();
+              if(t.startsWith(p)) t=t.slice(p.length); else { const pd=tk.decode(pids,{skip_special_tokens:true}).trim(); if(t.startsWith(pd)) t=t.slice(pd.length); }
+              r={text:t.replace(/^[\\s,.]+/,'')}; }
+          }catch(e){ r=null; }
+        }
+        if(!r) r = await asr(d.audio, { task:'transcribe', language: lang==='ko' ? 'korean' : 'english' });
+        self.postMessage({ id:d.id, type:'ok', hinted, text:(r.text||'').trim(), lang, margin, ms:Math.round(performance.now()-t0), lidMs:Math.round(tl-t0) });
       }
     }catch(err){ self.postMessage({ id:d.id, type:'error', message:String((err&&err.message)||err) }); }
   });
@@ -1767,7 +1786,7 @@ const Whisper = {
       e=>{ this.state='error'; this.err=e.message; this.loadP=null; refreshAsrStatus(); throw e; });
     return this.loadP;
   },
-  transcribe(f32,prev,lang){ return this.call({cmd:'asr',audio:f32,prev,lang},[f32.buffer]); },
+  transcribe(f32,prev,lang){ const prompt=this.hintText?this.hintText():''; return this.call({cmd:'asr',audio:f32,prev,lang,prompt},[f32.buffer]); },
   avgMs:600, pvHold:0, lagWarnAt:0,
 
   /* ---- 마이크 + 말 끊기(VAD) ---- */
@@ -1815,7 +1834,7 @@ const Whisper = {
       v.floor = v.floor*0.97 + Math.min(rms,0.05)*0.03;
       v.pre.push(fr); if(v.pre.length>10) v.pre.shift();                       // 말 시작 전 0.3초
       v.voiced = rms>th ? v.voiced+1 : 0;
-      if(v.voiced>=3){ v.speaking=true; v.buf=v.pre.slice(); v.pre=[]; v.silent=0; v.loud=0; v.lastPv=0; v.pvLang=''; this.handlers.listening?.(true); }
+      if(v.voiced>=3){ v.segStart=Date.now()-400; v.speaking=true; v.buf=v.pre.slice(); v.pre=[]; v.silent=0; v.loud=0; v.lastPv=0; v.pvLang=''; this.handlers.listening?.(true); }
     } else {
       v.buf.push(fr); v.rms.push(rms);
       v.lvl = rms>v.lvl ? v.lvl*0.8+rms*0.2 : v.lvl*0.995+rms*0.005;          // 말소리 크기(천천히 따라감)
@@ -1825,8 +1844,15 @@ const Whisper = {
       if(v.silent>=sil && v.buf.length>=50) this.endSeg();                     // 1.5초 미만 조각은 다음 말과 함께 (짧은 조각은 Whisper가 잘못 듣기 쉬움)
       else if(v.silent>=40) this.endSeg();                                     // 짧은 말이라도 1.2초 조용하면 보냄
       else if(sec>=maxSec) this.cutAtValley();                                 // 쉬지 않고 이어지면 가장 조용한 곳을 골라 자름
+      else if(this.lidFirst && this.lidFirst() && !this.pv && !this.busy && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=40) this.lidPeek();   // 구글 모드에서 말하는 중 1.2초마다 언어 확인 → 영어면 바로 Whisper로
       else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.ceil(this.avgMs*2.5/30))) this.previewNow();   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
     }
+  },
+  lidPeek(){
+    const v=this.vad, fr=v.buf; v.lastPv=fr.length;
+    const a=new Float32Array(fr.length*480); fr.forEach((f,i)=>a.set(f,i*480));
+    this.pv=true;
+    this.call({cmd:'lid',audio:a,prev:this.prevLang},[a.buffer]).then(l=>{ this.pv=false; if(this.vad.speaking && this.lidFirst && this.lidFirst() && this.handlers.lid) this.handlers.lid(l,{start:v.segStart,peek:true}); }).catch(()=>{ this.pv=false; });
   },
   previewNow(){
     const v=this.vad, fr=v.buf; v.lastPv=fr.length;
@@ -1851,7 +1877,7 @@ const Whisper = {
   },
   emit(frames){
     const a=new Float32Array(frames.length*480); frames.forEach((f,i)=>a.set(f,i*480));
-    this.queue.push({a, end:Date.now()}); this.pump();
+    this.queue.push({a, end:Date.now(), start:this.vad.segStart||Date.now()}); this.pump();
   },
   async pump(){
     if(this.busy) return; this.busy=true;
@@ -1863,7 +1889,13 @@ const Whisper = {
       this.handlers.busy?.(true, this.queue.length);
       try{
         if(this.state!=='ready') await this.load();
-        const r=await this.transcribe(a,this.prevLang);
+        let force;
+        if(this.lidFirst && this.lidFirst()){                                   // v0.6.0 자동 귀: 구글이 한국어를 받는 동안에는 언어만 확인
+          const l=await this.call({cmd:'lid',audio:a.slice(0),prev:this.prevLang});
+          if(!(this.handlers.lid && this.handlers.lid(l,q))) continue;          // 한국어면 구글에 맡기고 받아쓰지 않음
+          force=l.lang;                                                         // 영어로 바뀌었으면 이 조각은 Whisper가 받아씀
+        }
+        const r=await this.transcribe(a,this.prevLang,force);
         r.sec=sec; r.lag=Date.now()-q.end; r.backlog=this.queue.length;
         this.avgMs=this.avgMs*0.7+r.ms*0.3;
         if(r.lag>2500||r.backlog||q.merged){ this.pvHold=Date.now()+20000; }   // 밀리면 20초 동안 미리 보기를 쉬고 확정 받아쓰기에 집중
@@ -1878,10 +1910,11 @@ function setAsrStatus(msg,cls){ const el=$('asrStatus'); if(el){ el.textContent=
 (async()=>{ try{ const a='gpu' in navigator && await navigator.gpu.requestAdapter(); window.__gpuOK=!!a; }catch(_){ window.__gpuOK=false; } try{ refreshAsrStatus(); }catch(_){} })();
 function refreshAsrStatus(){
   const el=$('asrStatus'); if(!el) return;
-  $('btnWhLoad').hidden = S.asr!=='whisper';
-  $('whOpts').hidden = S.asr!=='whisper';
-  $('langRow').hidden = S.asr==='whisper';
-  if(S.asr!=='whisper'){ setAsrStatus(Speech.supported?'브라우저 내장 음성인식: 아래에서 고른 언어로만 알아듣습니다(한·영 섞인 말은 약함). 말하는 중에도 글자가 뜹니다.':'❌ 이 브라우저는 내장 음성인식이 없습니다. Whisper를 고르거나 크롬으로 열어 주세요.',Speech.supported?'':'bad'); return; }
+  const wh=S.asr==='whisper'||S.asr==='auto';
+  $('btnWhLoad').hidden = !wh;
+  $('whOpts').hidden = !wh;
+  $('langRow').hidden = wh;
+  if(!wh){ setAsrStatus(Speech.supported?'브라우저 내장 음성인식: 아래에서 고른 언어로만 알아듣습니다(한·영 섞인 말은 약함). 말하는 중에도 글자가 뜹니다.':'❌ 이 브라우저는 내장 음성인식이 없습니다. Whisper를 고르거나 크롬으로 열어 주세요.',Speech.supported?'':'bad'); return; }
   const gpu = window.__gpuOK===true;
   const m=S.whModel||'small';
   if(Whisper.state==='ready' && Whisper.model===m){ setAsrStatus(`✅ Whisper(${m}) 준비됨 — ${Whisper.device==='webgpu'?'그래픽 가속(WebGPU)':'CPU(WASM)'}로 실행. 언어 자동 판단, 한·영 섞어 말해도 됩니다.${Whisper.device!=='webgpu'?' ⚠ CPU라 느릴 수 있음 — base 권장. 그래픽 가속이 안 된 이유: '+(Whisper.why||'알 수 없음'):''}`,Whisper.device==='webgpu'?'ok':'warn'); $('btnWhLoad').hidden=true; return; }
@@ -2021,9 +2054,22 @@ function renderLive(){
 }
 function renderAll(){ clearCards(); S.entries.slice(-MAXC).forEach(renderEntry); renderLive(); updateSpChips(); list.scrollTop=list.scrollHeight; }
 function langInd(){
-  $('langInd').textContent = S.asr==='whisper' ? ('언어 자동'+(S.lastLang?' · 방금 '+LANGS[S.lastLang].tag:'')) : (LANGS[S.lang].name+' → '+LANGS[other(S.lang)].name+' (L)');
+  $('langInd').textContent = S.asr==='auto' ? (S.autoMode==='google'?'자동 · 한국어 → 구글':'자동 · Whisper'+(S.lastLang?' · 방금 '+LANGS[S.lastLang].tag:'')) : S.asr==='whisper' ? ('언어 자동'+(S.lastLang?' · 방금 '+LANGS[S.lastLang].tag:'')) : (LANGS[S.lang].name+' → '+LANGS[other(S.lang)].name+' (L)');
 }
 
+/* ---------- v0.5.3 Whisper에 자료 용어를 힌트로 (고유명사·전문용어를 맞게 받아쓰게) ---------- */
+let hintCache={key:'',text:''};
+Whisper.hintText=()=>{
+  if(S.hint===false) return '';
+  const key=Terms.vocab.size+':'+Terms.vocabEn.size+':'+Terms.pairs.length;
+  if(hintCache.key===key) return hintCache.text;
+  const out=[], add=w=>{ w=(w||'').trim(); if(w && !out.includes(w) && out.join(', ').length+w.length<200) out.push(w); };
+  Terms.pairs.forEach(p=>{ add(p[0]); add(p[1]); });
+  Terms.autoPairs.filter(p=>/ /.test(p[1])).forEach(p=>add(p[0]));
+  [...Terms.vocab.values()].filter(v=>v.fz).sort((a,b)=>b.n-a.n).slice(0,14).forEach(v=>add(v.form));
+  [...Terms.vocabEn.values()].filter(v=>v.fz).sort((a,b)=>(b.kind==='phrase')-(a.kind==='phrase')||b.n-a.n).slice(0,8).forEach(v=>add(v.form));
+  hintCache={key,text:out.join(', ')}; return hintCache.text;
+};
 /* ---------- 문장 확정 → 교정 → 기록 → 번역 ---------- */
 function commitSentence(raw,lang,r){
   raw=(raw||'').trim(); if(!raw) return;
@@ -2093,8 +2139,16 @@ function politeKo(s){
   s=s.replace(/([가-힣]+다)(?=\s*(?:[.!…"”']|$))/g,m=>politeEnd(m));
   const B='(^|[\\s"“‘\'(])';
   s=s.replace(new RegExp(B+'나는','g'),'$1저는').replace(new RegExp(B+'나도','g'),'$1저도').replace(new RegExp(B+'나를','g'),'$1저를').replace(new RegExp(B+'나에게','g'),'$1저에게')
-     .replace(new RegExp(B+'내가','g'),'$1제가').replace(new RegExp(B+'나의','g'),'$1제').replace(new RegExp(B+'내(?=\\s)','g'),'$1제');
-  if(S.yeoreobun!==false) s=s.replace(/당신/g,'여러분');
+     .replace(new RegExp(B+'난(?=\\s)','g'),'$1저는').replace(new RegExp(B+'내가','g'),'$1제가').replace(new RegExp(B+'나의','g'),'$1제').replace(new RegExp(B+'내(?=\\s)','g'),'$1제');
+  // v0.5.3 반말 끝맺음 → 존댓말 (문장 끝에서만)
+  s=s.replace(/(^|[\s"“])봐,\s*/g,'$1보세요, ')
+     .replace(/아니야(?=[.!?…"”]|$)/g,'아닙니다').replace(/거야\?/g,'건가요?').replace(/거야(?=[.!…"”]|$)/g,'겁니다')
+     .replace(/이야\?/g,'인가요?').replace(/이야(?=[.!…"”]|$)/g,'입니다')
+     .replace(/이니\?/g,'인가요?').replace(/니\?/g,'나요?').replace(/([가-힣])지\?/g,'$1죠?').replace(/([가-힣])(어|아|해|래|네)([?!.])(?=\s|["”]|$)/g,(m,a,b,c)=>a+b+'요'+c);
+  if(S.yeoreobun!==false){
+    s=s.split(/(?<=[.?!])\s+/).map(x=>/\?\s*$/.test(x)?x.replace(/당신(은|이|는)\s*/g,''):x).join(' ');   // 묻는 말은 '여러분' 대신 주어를 뺌 (1:1 질문에 어색하지 않게)
+    s=s.replace(/당신/g,'여러분');
+  }
   return s;
 }
 async function trTerms(text,s,t){
@@ -2168,8 +2222,26 @@ function onFinal(t){
   renderLive();
 }
 /* ---------- Whisper 모드: 말이 멈추면 한 덩어리씩 (언어 자동) ---------- */
+/* ---------- v0.6.0 자동 귀: 한국어는 구글 음성인식(말하는 중 표시·정확), 영어는 Whisper(언어 자동·기기 안) ---------- */
+Whisper.lidFirst=()=>S.presenting && S.asr==='auto' && S.autoMode==='google';
+function autoToGoogle(){
+  if(!Speech.supported || S.autoMode==='google') return;
+  S.autoMode='google'; S.lang='ko'; S.interim=null; utt={skip:0};
+  Speech.handlers={state:setDot,interim:onInterim,final:onFinalAuto}; Speech.start('ko');
+  toast('한국어 감지 → 구글 음성인식으로 (말하는 중에도 표시)',2000); langInd(); earInd(); renderLive();
+}
+function autoToWhisper(segStart){
+  if(S.autoMode!=='google') return;
+  S.autoMode='whisper'; S.dropAfter=(segStart||Date.now())-300; Speech.stop(); S.interim=null; utt={skip:0};
+  setDot(Whisper.running?'on':''); toast('영어 감지 → Whisper로',1500); langInd(); earInd(); renderLive();
+}
+function onFinalAuto(t){                                                      // 구글 결과는 0.7초 기다렸다가: 그사이 영어로 판별되면 버림(영어를 한국어로 잘못 받아쓴 글)
+  const at=Date.now();
+  setTimeout(()=>{ if(S.autoMode!=='google' && at>=(S.dropAfter||0)) { utt={skip:0}; return; } onFinal(t); },700);
+}
 function onWhisperText(text,lang,r){
   if(!S.presenting) return;
+  if(S.asr==='auto' && lang==='ko' && S.autoMode==='whisper' && r && (r.margin==null || r.margin>1)) setTimeout(autoToGoogle,0);   // 이 한국어 조각은 Whisper 글로 기록하고, 다음부터 구글
   S.interim=null;
   let laugh=false;
   text=text.replace(/[\[(]\s*([A-Za-z가-힣 ]{2,20})\s*[\])]/g,(m,w)=>{ if(/laugh|웃음/i.test(w)) laugh=true; return ' '; }).replace(/\s+/g,' ').trim();   // [APPLAUSE] (Laughter) 같은 효과음 표시는 빼고
@@ -2183,7 +2255,7 @@ function onWhisperText(text,lang,r){
 function setDot(st){ $('dot').className=st==='on'?'on':st==='err'?'err':''; earInd(); }
 function earInd(){
   const on=$('dot').className==='on';
-  $('earInd').textContent = (S.asr==='whisper' ? 'Whisper'+(Whisper.device?'('+Whisper.device+')':'')+' · 음성 기기 안 처리' : '가벼운 모드 · 음성 외부 전송')+(on?' · 🎙 켜짐':' · 마이크 꺼짐');
+  $('earInd').textContent = (S.asr==='auto' ? (S.autoMode==='google'?'자동: 지금 구글 음성인식(한국어) · 음성 외부 전송':'자동: 지금 Whisper'+(Whisper.device?'('+Whisper.device+')':'')+' · 기기 안 처리') : S.asr==='whisper' ? 'Whisper'+(Whisper.device?'('+Whisper.device+')':'')+' · 음성 기기 안 처리' : '가벼운 모드 · 음성 외부 전송')+(on?' · 🎙 켜짐':' · 마이크 꺼짐');
 }
 
 /* ---------- 발표 시작·끝 ---------- */
@@ -2193,7 +2265,7 @@ function readSetup(){
   S.trEngine=document.querySelector('input[name=tre]:checked').value;
   S.asr=document.querySelector('input[name=asr]:checked').value;
   S.whModel=$('whModel').value;
-  S.join=$('optJoin').checked; S.preview=$('optPreview').checked; S.polite=$('optPolite').checked; S.yeoreobun=$('optYeo').checked;
+  S.join=$('optJoin').checked; S.preview=$('optPreview').checked; S.hint=$('optHint').checked; S.polite=$('optPolite').checked; S.yeoreobun=$('optYeo').checked;
   S.autoFix=$('optAutoFix').checked; S.keepEn=$('optKeepEn').checked;
   S.speakers={A:$('spA').value.trim(),B:$('spB').value.trim(),C:$('spC').value.trim()};
   S.meta={date:$('mDate').value,place:$('mPlace').value.trim(),org:$('mOrg').value.trim(),people:$('mPeople').value.trim()};
@@ -2202,13 +2274,14 @@ function startPresent(){
   if(testing) stopTest();
   readSetup();
   if(S.asr==='web' && !Speech.supported){ VB.note('음성인식 없음','이 브라우저는 내장 음성인식을 지원하지 않습니다. ③에서 Whisper를 고르거나 크롬으로 열어 주세요.'); return; }
-  if(S.asr==='whisper') Whisper.prepare();          // 클릭 직후 오디오 준비
+  if(S.asr!=='web') Whisper.prepare();          // 클릭 직후 오디오 준비
   if(S.translate) Tr.ensure();                      // 클릭 직후 번역 준비
   VB.goFull(true);
   S.presenting=true; S.interim=null; utt={skip:0};
   VB.view('present');
   renderAll(); langInd(); earInd(); updateTopic();
-  if(S.asr==='whisper') startWhisperEar();
+  S.autoMode='whisper';
+  if(S.asr!=='web') startWhisperEar();
   else { Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang); toast(`${LANGS[S.lang].name} 발표 · 통역 시작 (L: 언어 전환 · Esc 두 번: 종료)`,3500); }
   saveSoon();
 }
@@ -2227,6 +2300,7 @@ async function startWhisperEar(){
         if(S.translate && Tr.ready(lang,other(lang))) trTerms(src,lang,other(lang)).then(out=>{ if(out && S.interim && S.interim.src===src+' …'){ S.interim.tgt=other(lang)==='ko'?politeKo(out):out; renderLive(); } }).catch(()=>{});
       },
       text:onWhisperText,
+      lid(l,q){ if(l.lang==='en' && l.margin<-1){ autoToWhisper(q&&q.start); return !q.peek; } return false; },
       error(e){ toast('Whisper 오류: '+e.message,5000); }
     });
     earInd(); toast('Whisper 통역 시작 — 언어 자동 판단 (Esc 두 번: 종료)',3500);
@@ -2249,7 +2323,7 @@ function markImportant(){
   e.imp=!e.imp; renderEntry(e); saveSoon(); toast(e.imp?'★ 중요 표시':'중요 표시 해제',1500);
 }
 function switchLang(){
-  if(S.asr==='whisper'){ toast('Whisper 모드는 언어를 자동으로 판단합니다',2000); return; }
+  if(S.asr!=='web'){ toast('Whisper·자동 모드는 언어를 자동으로 판단합니다',2000); return; }
   S.lang=other(S.lang); S.interim=null; utt={skip:0}; S.lastLang=S.lang;
   if(S.override && S.override.lang!==S.lang) S.override=null;
   Speech.start(S.lang); if(S.translate) Tr.ensure(); renderLive(); langInd(); updateSpChips(); saveSoon();
@@ -2258,10 +2332,11 @@ function switchLang(){
 /* v0.4.4 귀 바꾸기 (E): Whisper ↔ 가벼운 모드. 우리 쪽 한국어 발표처럼 한 언어로 길게 말할 때는 가벼운 모드가 말하는 중에도 글자를 띄워 빠름 */
 function switchEar(){
   if(!S.presenting) return;
+  if(S.asr==='auto'){ toast('자동 귀에서는 E가 필요 없습니다 — 한국어는 구글, 영어는 Whisper로 저절로 바뀝니다 (③에서 고정 모드로 바꿀 수 있음)',3500); return; }
   if(S.asr==='whisper'){
     if(!Speech.supported){ toast('이 브라우저에는 가벼운 모드(내장 음성인식)가 없습니다',2500); return; }
     if(Whisper.running) Whisper.stopMic();
-    S.asr='web'; S.lang=S.lastLang||'ko'; S.interim=null; utt={skip:0};
+    S.asr='web'; S.lang='ko'; S.interim=null; utt={skip:0};   // v0.5.3: E는 '우리 한국어 발표'용 → 한국어로 (L로 바꿈)
     Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang);
     toast(`귀: 가벼운 모드 · ${LANGS[S.lang].name} 고정 (말하는 중에도 표시) · ⚠ 음성이 브라우저 회사 서버로 전송 · L 언어, E 다시 Whisper`,4500);
   }else{
@@ -2294,7 +2369,7 @@ function renderTest(interim){
 $('btnTest').onclick=()=>{
   if(testing){ stopTest(); return; }
   readSetup();
-  if(S.asr==='whisper'){ startWhisperTest(); return; }
+  if(S.asr!=='web'){ startWhisperTest(); return; }
   if(!Speech.supported){ VB.note('음성인식 없음','이 브라우저는 내장 음성인식을 지원하지 않습니다. ③에서 Whisper를 고르거나 크롬으로 열어 주세요.'); return; }
   if(S.translate) Tr.ensure();
   testing=true; testLines=[]; $('btnTest').textContent='■ 테스트 끝내기';
@@ -2382,7 +2457,7 @@ $('mList').addEventListener('click',e=>{
   saveSoon(); renderMinutes();
 });
 function metaDate(){ if(!S.meta.date) return ''; const d=new Date(S.meta.date); return isNaN(d)?S.meta.date:d.toLocaleString('ko-KR',{dateStyle:'long',timeStyle:'short'}); }
-function isQuestion(e){ return e.type==='question' || /\?\s*$/.test(e.src) || (e.lang==='en'&&Q_RE_EN.test(e.src.trim())) || /질문|궁금/.test(e.src); }
+function isQuestion(e){ return e.type==='question' || /[?？]\s*$/.test(e.src) || /질문|궁금/.test(e.src); }   // v0.5.3: '…when I respond.' 같은 설명문이 질문 목록에 섞이지 않게
 function koText(e){ return e.lang==='ko'?e.src:(e.tgt||e.src); }
 function keywords(n=10){
   const cnt=new Map(), glo=new Set(Terms.pairs.map(x=>x[0].replace(/\s+/g,'')));
@@ -2397,6 +2472,7 @@ function keywords(n=10){
   return [...cnt].filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([w,c])=>`${w}(${c})`);
 }
 function fmtSec(ms){ return ms<100?'0.1초 미만':(ms/1000).toFixed(1)+'초'; }
+function lagLine(){ const l=S.entries.filter(e=>e.lag!=null).map(e=>e.lag+(e.trMs||0)); if(!l.length) return ''; const avg=l.reduce((a,b)=>a+b,0)/l.length; const by=k=>{ const x=S.entries.filter(e=>e.lag!=null&&e.lang===k).map(e=>e.lag+(e.trMs||0)); return x.length?(x.reduce((a,b)=>a+b,0)/x.length/1000).toFixed(1)+'초':'-'; }; return `말 끝→표시: 평균 ${(avg/1000).toFixed(1)}초 (영어 ${by('en')} · 한국어 ${by('ko')}), 최대 ${(Math.max(...l)/1000).toFixed(1)}초 / ${l.length}문장`; }
 function speedLine(){
   const ms=S.entries.map(e=>e.trMs).filter(x=>x!=null); if(!ms.length) return '번역 속도: 기록 없음';
   const avg=ms.reduce((a,b)=>a+b,0)/ms.length, over=ms.filter(x=>x>3000).length;
@@ -2423,7 +2499,7 @@ function buildSummaryLines(){
   }
   const qs=E.filter(isQuestion); if(qs.length){ L.push('',`■ 질문·요청 (${qs.length})`); qs.forEach(e=>L.push(`- [${hhmmss(e.time).slice(0,5)} · ${spLabel(e.sp)}] ${e.src}${e.lang==='en'&&e.tgt?' / '+e.tgt:''}`)); }
   L.push('','■ 기록 품질');
-  L.push('- '+speedLine().replace('번역 속도: ','번역 속도 '));
+  L.push('- '+speedLine().replace('번역 속도: ','번역 속도 ')); if(lagLine()) L.push('- '+lagLine());
   const fx=E.filter(e=>e.raw).length; if(fx) L.push(`- 자료 용어로 자동 교정 ${fx}문장 (각 문장 아래 '교정 전' 확인)`);
   const nt=S.translate?E.filter(e=>!e.tgt).length:0; if(nt) L.push(`- 번역 없는 문장 ${nt}개`);
   return L;
@@ -2435,12 +2511,12 @@ function buildTxt(){
   L.push('일시: '+metaDate(),'장소: '+S.meta.place,'기관: '+S.meta.org,'참석자: '+S.meta.people);
   L.push('화자: '+['A','B','C'].map(spLabel).join(' / '));
   L.push('자료: '+(D.name||'-'),'기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
-  L.push(speedLine());
+  L.push(speedLine()); if(lagLine()) L.push(lagLine());
   L.push('','==================== 요약 정보 ====================','');
   buildSummaryLines().forEach(x=>L.push(x));
   L.push('','==================== 전체 기록 ====================','');
   S.entries.forEach(e=>{
-    L.push(`[${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}] [${spLabel(e.sp)}] [${TYPE_NAME[e.type]||'설명'}]${e.imp?' ★중요':''}${e.trMs!=null?` (번역 ${fmtSec(e.trMs)})`:''}`);
+    L.push(`[${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}] [${spLabel(e.sp)}] [${TYPE_NAME[e.type]||'설명'}]${e.imp?' ★중요':''}${e.lag!=null?` (말 끝→표시 ${((e.lag+(e.trMs||0))/1000).toFixed(1)}초, 조각 ${e.seg}초)`:''}${e.trMs!=null?` (번역 ${fmtSec(e.trMs)})`:''}`);
     L.push(`원문(${LANGS[e.lang].tag}): ${TYPE_ICON[e.type]?TYPE_ICON[e.type]+' ':''}${e.src}`);
     if(e.raw) L.push(`  ※ 자동 교정 전: ${e.raw}`);
     if(e.tgt) L.push(`번역(${LANGS[other(e.lang)].tag}): ${e.tgt}`);
@@ -2526,7 +2602,7 @@ function syncSetupOptions(){
   q('lang',S.lang); q('asr',S.asr||'web'); q('tre',S.trEngine||'auto');
   $('optTranslate').checked=S.translate; $('whModel').value=S.whModel||'small';
   $('optAutoFix').checked=S.autoFix!==false; $('optKeepEn').checked=S.keepEn!==false;
-  $('optJoin').checked=S.join!==false; $('optPreview').checked=S.preview!==false; $('optPolite').checked=S.polite!==false; $('optYeo').checked=S.yeoreobun!==false;
+  $('optJoin').checked=S.join!==false; $('optPreview').checked=S.preview!==false; $('optHint').checked=S.hint!==false; $('optPolite').checked=S.polite!==false; $('optYeo').checked=S.yeoreobun!==false;
   $('spA').value=S.speakers.A||''; $('spB').value=S.speakers.B||''; $('spC').value=S.speakers.C||'';
   refreshAsrStatus(); refreshTrStatus();
 }
@@ -2536,9 +2612,15 @@ $('whModel').onchange=()=>{ S.whModel=$('whModel').value; refreshAsrStatus(); sa
 $('btnWhLoad').onclick=()=>{ readSetup(); Whisper.load(S.whModel).catch(()=>{}); };
 $('btnGoMinutes').onclick=()=>{ readSetup(); openMinutes(); };
 $('optTranslate').onchange=()=>{ S.translate=$('optTranslate').checked; saveSoon(); };
-['optJoin','optPolite','optYeo','optPreview'].forEach(id=>$(id).addEventListener('change',()=>{ readSetup(); saveSoon(); }));
+['optJoin','optPolite','optYeo','optPreview','optHint'].forEach(id=>$(id).addEventListener('change',()=>{ readSetup(); saveSoon(); }));
 $('optAutoFix').onchange=()=>{ S.autoFix=$('optAutoFix').checked; $('fixIn').dispatchEvent(new Event('input')); saveSoon(); };
 $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispatchEvent(new Event('input')); saveSoon(); };
+document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{
+  const p=b.getAttribute('data-preset'), q=(n,v)=>{ const r=document.querySelector(`input[name=${n}][value=${v}]`); if(r) r.checked=true; };
+  if(p==='ko'){ q('asr','web'); q('lang','ko'); } else if(p==='auto'){ q('asr','auto'); } else { q('asr','whisper'); $('optTranslate').checked=false; }
+  readSetup(); refreshAsrStatus(); saveSoon();
+  toast(p==='ko'?'우리 한국어 발표: 가벼운 모드(한국어) · 말하는 중에도 표시 · ⚠ 음성이 브라우저 회사 서버로 전송':p==='auto'?'자동: 한국어는 구글(⚠ 음성 외부 전송), 영어는 Whisper(기기 안)':'시청 내부 회의: Whisper만 · 음성은 기기 안에서만 · 번역 끔(회의록만)',3500);
+}));
 ['spA','spB','spC'].forEach(id=>$(id).addEventListener('input',()=>{ S.speakers={A:$('spA').value.trim(),B:$('spB').value.trim(),C:$('spC').value.trim()}; updateSpChips(); saveSoon(); }));
 ['mDate','mPlace','mOrg','mPeople'].forEach(id=>$(id).addEventListener('input',()=>{ readSetup(); saveSoon(); }));
 
@@ -2550,7 +2632,7 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
   $('mDate').value=nowLocal(); readSetup();
   const saved=loadSaved();
   if(saved){
-    Object.assign(S,{preview:saved.preview!==false,join:saved.join!==false,polite:saved.polite!==false,yeoreobun:saved.yeoreobun!==false,autoFix:saved.autoFix!==false,keepEn:saved.keepEn!==false,speakers:saved.speakers||S.speakers,asr:saved.asr||'web',whModel:saved.whModel||'small',trEngine:saved.trEngine||'auto',lang:saved.lang||'ko',translate:saved.translate!==false});
+    Object.assign(S,{hint:saved.hint!==false,preview:saved.preview!==false,join:saved.join!==false,polite:saved.polite!==false,yeoreobun:saved.yeoreobun!==false,autoFix:saved.autoFix!==false,keepEn:saved.keepEn!==false,speakers:saved.speakers||S.speakers,asr:(saved.v>=4?saved.asr:'auto')||'auto',whModel:(saved.v>=3?saved.whModel:'small')||'small',trEngine:saved.trEngine||'auto',lang:saved.lang||'ko',translate:saved.translate!==false});
     syncSetupOptions(); Terms.rebuild();
   }
   if(saved && (saved.entries?.length || saved.deckName)){
@@ -2579,4 +2661,4 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
 </script>
 </body>
 </html>
-<!-- END index v0.5.2 -->
+<!-- END index v0.6.0 -->
