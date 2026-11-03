@@ -1,434 +1,908 @@
-<!doctype html>
+<!-- 버전·날짜·변경 3줄
+  index v0.4.0 | 2026-11-03 | 원본 보기(view-bench v0.3.0: PDF·PPTX·HTML 그대로) + 화자별 통역 카드(언어로 A·B 자동, 1·2·3 키로 바꾸기) + 자료 용어 엔진을 작동본(귀·번역·회의록)에 합침. 리모컨 F5/Esc/B 대응
+  v0.3.x(10-31) | Whisper 언어 자동 판단, 2칸 자막 + 지금 주제, 자료 기반 자동 교정, 번역 비교, 회의록 요약
+  부품: pdf.js 3.11.174 · @aiden0z/pptx-renderer 1.4.0 · Transformers.js 3.8.1(Whisper·opus-mt·NLLB, 웹 워커) — 모두 버전 고정 CDN
+  손 용어집 없음(올린 자료의 글자가 기준). 서버·로그인·청중 송출 없음. 기록은 이 기기 브라우저에만 저장
+-->
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>발표 통역 자막 도우미</title>
-<!-- pdf.js (모질라) : PDF를 슬라이드처럼 한 장씩 그림 -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>발표 통역 자막 도우미 v0.4.0</title>
 <style>
-:root{
-  --bg:#f4f6f8; --card:#ffffff; --ink:#1d2433; --muted:#667085; --line:#d9dee7;
-  --accent:#1f6feb; --accent-ink:#ffffff; --ok:#1a7f37; --warn:#b54708; --bad:#c62828;
-  --cap-size:26px; --cap-w:34vw;
-}
+:root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
 [hidden]{display:none!important}
-button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:#fff;padding:8px 14px}
-button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
-button.big{font-size:20px;padding:14px 28px}
-button:disabled{opacity:.5;cursor:not-allowed}
-input,select,textarea{font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;background:#fff;color:var(--ink)}
-label{font-weight:600;font-size:14px}
-
-/* ---------- 1. 준비 화면 ---------- */
-#setup{min-height:100%;padding:24px 16px 48px}
-.wrap{max-width:860px;margin:0 auto}
-h1{font-size:26px;margin:0 0 4px}
-.sub{color:var(--muted);margin:0 0 20px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
-.card h2{font-size:17px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
-.num{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:14px}
-.row{display:flex;gap:12px;flex-wrap:wrap}
-.row>*{flex:1 1 200px}
-.radio{display:flex;gap:10px;flex-wrap:wrap}
-.radio label{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-weight:500;cursor:pointer;flex:1 1 180px}
-.radio input{width:auto}
-.radio label.off{opacity:.5;cursor:not-allowed}
-.note{font-size:13px;color:var(--muted);margin:8px 0 0}
-.status{font-size:14px;margin-top:8px;padding:8px 10px;border-radius:8px;background:#f2f4f7}
-.status.ok{color:var(--ok)} .status.warn{color:var(--warn)} .status.bad{color:var(--bad)}
-#drop{border:2px dashed var(--line);border-radius:10px;padding:18px;text-align:center;cursor:pointer}
-#drop.over{border-color:var(--accent);background:#eef4ff}
-#thumb{max-height:120px;border:1px solid var(--line);margin-top:10px;display:block}
-.check{display:flex;align-items:center;gap:8px;font-weight:500}
-.check input{width:auto}
-#testBox{margin-top:10px;background:#111;color:#fff;border-radius:10px;padding:12px 14px;min-height:70px;font-size:17px}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:15px/1.5 'Pretendard','Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif}
+button,.btn{display:inline-block;font:inherit;font-size:13px;color:var(--text);background:var(--p2);border:1px solid var(--line);border-radius:8px;padding:6px 11px;cursor:pointer;white-space:nowrap}
+button:hover,.btn:hover{border-color:var(--acc)}
+button.on,button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+button:disabled{opacity:.4;cursor:default}
+input[type=text],input[type=datetime-local],select,textarea{font:inherit;font-size:14px;color:var(--text);background:#0f1219;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:0 0 8px}
+.grid2 label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.sp{flex:1}
+.sb{font-size:12px;color:var(--muted)}
+.chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.ok{color:var(--ok);border-color:var(--ok)}
+.chip.warn{color:var(--warn);border-color:var(--warn)}
+.chip.ca{color:#4f9cf7;border-color:#4f9cf7}
+.chip.cb{color:#e9a83b;border-color:#e9a83b}
+.chip.cc{color:#6fcf97;border-color:#6fcf97}
+[data-sp]{cursor:pointer}
+.chip.cur{background:rgba(255,255,255,.14);color:#fff;font-weight:700}
+.chip.pair{color:var(--text);border-color:var(--acc)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.radio{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+.radio label{flex:1 1 220px;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;cursor:pointer}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;margin:4px 0}
+.status{margin:6px 0;padding:7px 10px;border-radius:8px;background:var(--p2);font-size:13px}
+.status.ok{color:var(--ok)}.status.warn{color:var(--warn)}.status.bad{color:var(--bad)}
+#setup{max-width:940px;margin:0 auto;padding:14px 14px 40px}
+#setup h1{margin:0;font-size:21px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px}
+.box h2{margin:0 0 8px;font-size:16px}
+.box h2 .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin-right:6px;border-radius:50%;background:var(--acc);color:#fff;font-size:12px}
+.drop{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px;margin-bottom:8px;border:1.5px dashed var(--line);border-radius:10px}
+.drop.drag{border-color:var(--acc);background:rgba(79,156,247,.1)}
+.drop .t{flex:1;min-width:200px;font-size:12px;color:var(--muted)}
+.drop .t b{display:block;font-size:15px;color:var(--text)}
+#prog{height:6px;margin:6px 0;background:var(--p2);border-radius:4px;overflow:hidden}
+#progBar{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+#thumb{display:block;max-width:280px;max-height:160px;margin-top:6px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.startbar{position:sticky;bottom:0;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;padding:10px;margin:0 -14px;background:rgba(15,18,25,.92);border-top:1px solid var(--line)}
+#btnStart{font-size:17px;padding:10px 22px}
+.keys{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--muted)}
+.keys b{color:var(--text)}
+kbd{display:inline-block;min-width:20px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;font:inherit;font-size:12px;color:var(--text);text-align:center}
+#restore{border-color:var(--warn)}
+#envWarn{border-color:var(--bad);color:#ffd6dc}
+.tsub{margin:10px 0 4px;font-size:12px;font-weight:700;color:var(--muted)}
+#refList .rf{display:flex;align-items:center;gap:6px;font-size:13px;margin:2px 0}
+#refList .rf button{padding:1px 7px;font-size:11px}
+#fixOut,#fixTr{margin-top:4px;line-height:1.7}
+#fixOut b{color:var(--ok)}
+#fixIn,#cmpIn{flex:1;min-width:200px}
+.cmp{margin-top:6px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.cmp div{display:grid;grid-template-columns:130px 1fr 54px;gap:8px;padding:6px 10px;border-top:1px solid var(--line);font-size:14px}
+.cmp div:first-child{border-top:none}
+.cmp .eng,.cmp .ms{color:var(--muted);font-size:12px}
+#testBox{min-height:64px;margin-top:6px;padding:10px 12px;background:#000;border-radius:8px;font-size:16px}
 #testBox .tgt{color:#ffd54a}
 #testBox .interim{opacity:.6;font-style:italic}
-.startbar{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:18px}
-#restore{border-color:var(--warn);background:#fff8f0}
-.keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px 14px;font-size:14px;color:var(--muted)}
-kbd{display:inline-block;min-width:24px;text-align:center;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:#fff;color:var(--ink);font-family:inherit;font-size:13px}
-
-/* ---------- 2. 발표 화면 ---------- */
-#present{position:fixed;inset:0;background:#000;overflow:hidden}
-#present.nocursor{cursor:none}
-#stage{position:absolute;top:0;left:0;bottom:0;right:0;display:grid;place-items:center}
-#present.reserve #stage{right:var(--cap-w)}
-#slide{max-width:100%;max-height:100%;object-fit:contain;user-select:none}
-#noslide{color:#888;font-size:22px}
-#cap{position:absolute;top:2vh;right:1.2vw;width:var(--cap-w);display:flex;flex-direction:column;gap:1.4vh;font-size:var(--cap-size);line-height:1.35;transition:opacity .2s}
-#cap.empty{opacity:0}
-.capbox{background:rgba(0,0,0,.68);color:#fff;border-radius:12px;padding:8px 16px 12px;display:flex;flex-direction:column;min-height:0}
-.capbox .lbl{font-size:max(12px,calc(var(--cap-size)*.45));letter-spacing:.04em;color:#aab4c5;margin-bottom:4px;flex:none}
-.capbox .lines{display:flex;flex-direction:column;justify-content:flex-end;gap:6px;max-height:34vh;overflow:hidden}
-.ln{flex:none;word-break:keep-all;overflow-wrap:anywhere}
-.tgtbox{background:rgba(10,20,45,.78)}
-.tgtbox .lines{color:#ffd54a}
-.ln.old{opacity:.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.ln.interim{opacity:.7;font-style:italic}
-.ln.wait{opacity:.45}
-.ln.imp{border-left:3px solid #ffd54a;padding-left:8px}
-#present.reserve #cap{top:0;right:0;bottom:0;width:var(--cap-w);gap:0;background:#0d1117}
-#present.reserve .capbox{flex:1 1 50%;border-radius:0;background:transparent;padding:14px 18px}
-#present.reserve .tgtbox{background:#101a30;border-top:2px solid #30363d;padding-bottom:60px}
-#present.reserve .capbox .lines{max-height:none;flex:1;min-height:0}
-#pageNo{position:absolute;right:1.2vw;bottom:1.5vh;color:#fff;background:rgba(0,0,0,.5);padding:4px 12px;border-radius:8px;font-size:20px;display:flex;align-items:center;gap:8px}
-#dot{width:10px;height:10px;border-radius:50%;background:#777}
-#dot.on{background:#2ecc71} #dot.err{background:#e53935}
-#toast{position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);background:rgba(20,20,20,.92);color:#fff;padding:12px 20px;border-radius:10px;font-size:18px;max-width:80vw;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none}
+/* ---------- 발표 화면 ---------- */
+#present{position:fixed;top:0;left:0;right:0;bottom:0;display:grid;grid-template-columns:minmax(0,1fr) var(--sideW);background:#000}
+body.noside #present{grid-template-columns:minmax(0,1fr)}
+body.noside #side{display:none}
+#stage{position:relative;min-width:0;min-height:0;overflow:hidden;background:#000}
+#pdfImg{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain}
+#pptxBox{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#pptxInner{width:100%;flex:none}
+#htmlFrame{position:absolute;top:0;left:0;width:100%;height:100%;border:0;background:#fff}
+#stageMsg{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);padding:0 20px;text-align:center;color:var(--muted);font-size:18px}
+#blackout{position:absolute;top:0;left:0;right:0;bottom:0;z-index:4;background:#000}
+#ctl{position:absolute;left:50%;bottom:10px;z-index:5;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:4px 8px;background:rgba(15,18,25,.8);border:1px solid var(--line);border-radius:10px;opacity:.35;transition:opacity .2s}
+#ctl:hover,#ctl:focus-within{opacity:1}
+#pageNo{min-width:64px;text-align:center;font-size:13px;color:#fff}
+#dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#777;vertical-align:middle}
+#dot.on{background:#2ecc71}#dot.err{background:#e53935}
+#side{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel);border-left:1px solid var(--line)}
+#topic{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:#222a3a;border-bottom:1px solid var(--line)}
+#topic .tag{flex:none;margin-top:3px;padding:2px 8px;font-size:11px;font-weight:700;color:#fff;background:var(--acc);border-radius:6px}
+#topicText{font-size:calc(17px*var(--fs)/100);font-weight:700;line-height:1.35;word-break:break-word}
+#topicTr{display:block;font-size:calc(14px*var(--fs)/100);font-weight:400;color:var(--muted)}
+#sideHead{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;padding:6px 10px;border-bottom:1px solid var(--line)}
+#capList{flex:1;min-height:0;overflow:auto;padding:8px}
+#sideCtl{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 8px;border-top:1px solid var(--line)}
+.empty{padding:18px;text-align:center;color:var(--muted);border:1.5px dashed var(--line);border-radius:10px;font-size:13px}
+.card{display:flex;gap:10px;padding:8px 10px;margin-bottom:8px;background:var(--p2);border:1px solid var(--line);border-left:5px solid var(--c);border-radius:8px}
+.card.imp{box-shadow:inset 0 0 0 1px #ffd54a}
+.card.live{opacity:.75;border-style:dashed}
+.sp-A{--c:#4f9cf7}.sp-B{--c:#e9a83b}.sp-C{--c:#6fcf97}
+.card .who{flex:none;width:70px;text-align:center;font-size:11px;color:var(--muted);word-break:keep-all}
+.card .av{width:32px;height:32px;margin:0 auto 2px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#0f1219;background:var(--c);border-radius:50%}
+.card .bd{flex:1;min-width:0}
+.card .org{margin-bottom:4px;font-size:calc(13px*var(--fs)/100);color:var(--muted);word-break:break-word}
+.card .tr{font-size:calc(20px*var(--fs)/100);line-height:1.45;word-break:break-word}
+.card .tr.wait{color:var(--muted);font-style:italic}
+.card.live .tr{font-style:italic}
+.card .nt{margin-top:4px;font-size:calc(12px*var(--fs)/100);color:var(--warn)}
+.card .nt.ok{color:var(--ok)}
+.card .mt{margin-top:2px;font-size:10px;color:var(--muted)}
+body.noorg .card .org{display:none}
+mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2px}
+#toast{position:fixed;left:50%;bottom:64px;z-index:120;transform:translateX(-50%);max-width:80vw;padding:10px 18px;background:rgba(20,20,20,.94);border:1px solid var(--line);border-radius:10px;color:#fff;font-size:16px;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none}
 #toast.show{opacity:1}
-textarea.gloss{min-height:150px;font-family:inherit;font-size:14px;line-height:1.5}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.chip{background:#eef2f7;border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px}
-.src-row{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:6px}
-.src-row button{padding:2px 8px;font-size:13px}
-#fixOut{margin-top:6px;font-size:15px}
-#fixOut b{color:var(--ok)}
-.cmp{margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.cmp div{display:grid;grid-template-columns:150px 1fr 60px;gap:8px;padding:8px 10px;border-top:1px solid var(--line);font-size:15px}
-.cmp div:first-child{border-top:none}
-.cmp .eng{color:var(--muted);font-size:13px}
-.cmp .ms{color:var(--muted);font-size:13px;text-align:right}
-#sumBox{white-space:pre-wrap;font-size:14px;line-height:1.6;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:12px 14px;max-height:420px;overflow:auto}
-#pageNo{cursor:pointer}
-#menu{position:absolute;right:1.2vw;bottom:calc(1.5vh + 52px);display:flex;flex-direction:column;gap:6px;background:rgba(20,20,20,.92);padding:10px;border-radius:12px}
-#menu button{background:#2b2f36;color:#fff;border:1px solid #444;font-size:18px;padding:10px 16px;text-align:left;min-width:190px}
-#menu button.end{background:#8b1e1e;border-color:#b33}
-
-/* ---------- 3. 회의록 화면 ---------- */
-#minutes{min-height:100%;padding:24px 16px 60px}
-.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-.mrow{display:grid;grid-template-columns:76px 60px 34px 1fr 1fr 34px;gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line)}
-.mrow.head{font-weight:700;font-size:13px;color:var(--muted)}
-.mrow textarea{min-height:56px;resize:vertical;font-size:15px}
-.mrow .t{font-size:13px;color:var(--muted);padding-top:8px}
-.star{border:none;background:none;font-size:22px;padding:4px;color:#c8cdd6}
+/* ---------- 회의록 ---------- */
+#minutes{max-width:1180px;margin:0 auto;padding:14px 14px 50px}
+#minutes h1{margin:0 0 4px;font-size:21px}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+#sumBox{white-space:pre-wrap;font-size:13px;line-height:1.6;background:#0f1219;border:1px solid var(--line);border-radius:8px;padding:10px 12px;max-height:420px;overflow:auto}
+.mrow{display:grid;grid-template-columns:62px 44px 56px 30px 1fr 1fr 30px;gap:6px;align-items:start;padding:6px 0;border-bottom:1px solid var(--line)}
+.mrow.head{font-size:12px;font-weight:700;color:var(--muted)}
+.mrow textarea{width:100%;min-height:52px;resize:vertical}
+.mrow .t{padding-top:6px;font-size:12px;color:var(--muted)}
+.mrow .spb{padding:3px 0;font-size:12px;border-left:4px solid var(--c)}
+.star,.del{padding:4px;border:none;background:none;font-size:18px;color:#5b6577}
 .star.on{color:#f5a623}
-.del{border:none;background:none;color:var(--muted);font-size:18px;padding:4px}
-@media (max-width:700px){.mrow{grid-template-columns:60px 46px 30px 1fr 30px}.mrow .tgtcol{grid-column:4/5}}
+@media (max-width:700px){.mrow{grid-template-columns:52px 40px 50px 28px 1fr 28px}.mrow .tgtcol{grid-column:5/6}}
+#errbar{display:none;position:fixed;top:0;left:0;right:0;z-index:200;padding:6px 10px;background:#5a1f28;border-bottom:1px solid var(--bad);color:#ffd6dc;font-size:13px;cursor:pointer;word-break:break-word}
+#errbar.show{display:block}
+#modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:150;align-items:center;justify-content:center;padding:14px;background:rgba(0,0,0,.6)}
+#modal.show{display:flex}
+#modal .mbox{width:min(760px,100%);max-height:90vh;overflow:auto;padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+#modal pre{white-space:pre-wrap;word-break:break-all;font-size:11px;background:#0f1219;padding:8px;border-radius:8px}
+#modal textarea{width:100%;min-height:200px}
+@media (orientation:portrait){#present{grid-template-columns:1fr;grid-template-rows:minmax(0,46vh) minmax(0,1fr)}#side{border-left:0;border-top:1px solid var(--line)}body.noside #present{grid-template-rows:1fr}}
 </style>
 </head>
 <body>
+<noscript><div style="padding:12px;background:#e0596a;color:#fff">이 화면은 JavaScript가 필요합니다.</div></noscript>
+<div id="errbar"></div>
 
 <!-- ===================== 1. 준비 화면 ===================== -->
-<section id="setup">
- <div class="wrap">
-  <h1>발표 통역 자막 도우미</h1>
-  <p class="sub">PDF를 올리고 → 언어를 고르고 → [발표 시작]을 누르면 됩니다.</p>
+<main id="setup">
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.0 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
-  <div id="envWarn" class="card" hidden style="border-color:var(--bad)"></div>
-
-  <div id="restore" class="card" hidden>
-   <h2>이전에 저장된 기록이 있습니다</h2>
-   <div id="restoreInfo" class="note" style="margin-bottom:10px"></div>
-   <div class="row" style="flex:none">
-    <button id="btnResume" class="primary">이어서 하기</button>
-    <button id="btnRestoreMinutes">회의록 보기·저장</button>
-    <button id="btnDiscard">지우고 새로 시작</button>
-   </div>
-  </div>
-
-  <div class="card">
-   <h2><span class="num">1</span>발표자료 PDF</h2>
-   <div id="drop">여기를 눌러 PDF 선택 (또는 파일을 끌어다 놓기)
-     <input id="pdfFile" type="file" accept="application/pdf" hidden>
-   </div>
-   <div id="pdfStatus" class="note"></div>
-   <img id="thumb" alt="" hidden>
-  </div>
-
-  <div class="card">
-   <h2><span class="num">2</span>발표 언어</h2>
-   <div class="radio">
-    <label><input type="radio" name="lang" value="ko" checked> 한국어로 발표 → 영어 번역</label>
-    <label><input type="radio" name="lang" value="en"> 영어로 발표 → 한국어 번역</label>
-   </div>
-   <label class="check" style="margin-top:10px"><input id="optTranslate" type="checkbox" checked> 번역 자막도 함께 표시 (내부 회의는 끄기)</label>
-   <div style="margin-top:14px"><label>번역 엔진</label></div>
-   <div class="radio" style="margin-top:6px">
-    <label><input type="radio" name="tre" value="auto" checked> 자동 (추천)</label>
-    <label><input type="radio" name="tre" value="chrome"> 크롬 내장 (PC 크롬)</label>
-    <label><input type="radio" name="tre" value="hf"> 허깅페이스 모델 (아이패드·모든 기기)</label>
-   </div>
-   <div id="trStatus" class="status">번역 상태 확인 중…</div>
-   <button id="btnTrLoad" style="margin-top:8px" hidden>⬇ 번역 모델 내려받기</button>
-   <div style="margin-top:14px"><label>번역 비교 — 문장을 입력하면 엔진별 번역을 나란히 보여 줍니다 (음성인식 없이 번역 품질만 확인)</label></div>
-   <div class="row" style="margin-top:6px;flex-wrap:nowrap">
-    <input id="cmpIn" placeholder="예: 오늘은 싱가포르의 QR 반납 제도를 원주시에 어떻게 적용할 수 있는지 여쭙고 싶습니다." style="flex:1">
-    <button id="btnCmp" style="flex:none">비교</button>
-   </div>
-   <div id="cmpOut"></div>
-   <p class="note">자동: PC 크롬이면 크롬 내장(품질·속도 가장 좋음), 아이패드 등은 허깅페이스 모델을 씁니다. 허깅페이스 한→영 모델은 품질이 낮은 편이라 <b>용어집을 꼭 채워 주세요.</b><br>
-   허깅페이스 모델은 처음 한 번 모델 파일만 내려받고(한→영 약 110MB · 영→한 약 850MB), 번역은 이 기기 안에서 처리됩니다. <b>와이파이에서 미리 받아 두세요.</b> 영→한 모델은 크고 느려 PC 전용(실험용)입니다.</p>
-  </div>
-
-  <div class="card">
-   <h2><span class="num">3</span>용어집·참고자료 <span class="note" style="margin:0;font-weight:400">(잘못 들린 고유명사를 자동으로 고침)</span></h2>
-   <label>참고자료 올리기 — 사업계획서·보고서 등 (PDF·TXT, 여러 개 가능)</label>
-   <div class="row" style="flex:none;margin-top:6px">
-    <button id="btnRef" style="flex:none">📎 참고자료 선택</button>
-    <input id="refFile" type="file" accept=".pdf,.txt,.md,application/pdf,text/plain" multiple hidden>
-   </div>
-   <p class="note">발표자료 PDF의 글자도 자동으로 사용합니다. 한글(HWP)·워드 파일은 PDF로 저장해서 올려 주세요. 자료는 이 기기 안에서만 쓰고 외부로 보내지 않습니다.</p>
-   <div id="refList"></div>
-   <div id="termInfo" class="note"></div>
-   <div id="termChips" class="chips"></div>
-
-   <div style="margin-top:14px"><label>용어집</label> <button id="btnGlossEx" style="padding:2px 10px;font-size:13px;margin-left:6px">예시 넣기</button></div>
-   <textarea id="gloss" class="gloss" style="margin-top:6px" placeholder="# 틀리게 들린 말 → 바른 말   (자막을 고침)
-언제 시청 → 원주시청
-# 바른 말 = 영어 표기   (번역에 그대로 사용)
-원주시청 = Wonju City Hall"></textarea>
-   <label class="check" style="margin-top:8px"><input id="optAutoFix" type="checkbox" checked> 참고자료 용어로 비슷한 소리 자동 교정 (한국어)</label>
-   <div class="row" style="margin-top:10px">
-    <div><label>교정 시험 — 잘못 들린 문장을 넣어 보세요</label><input id="fixIn" placeholder="예: 오늘 발표를 맡은 언제 시청 팀장입니다"></div>
-   </div>
-   <div id="fixOut" class="note"></div>
-  </div>
-
-  <div class="card">
-   <h2><span class="num">4</span>음성인식 엔진</h2>
-   <div class="radio">
-    <label><input type="radio" name="engine" value="basic" checked> 기본 (브라우저 내장 음성인식)</label>
-    <label class="off"><input type="radio" name="engine" value="secure" disabled> 보안 (Whisper·NLLB) — 2·3단계에서 추가</label>
-   </div>
-   <p class="note">⚠ 기본 엔진: <b>음성이 브라우저 회사 서버(크롬=구글, 사파리=애플)로 전송</b>되어 글자로 바뀝니다. 번역은 이 기기 안에서 처리됩니다. 비공개 회의에는 쓰지 마세요.</p>
-   <label class="check" style="margin-top:10px"><input id="optReserve" type="checkbox" checked> 오른쪽에 자막 전용 칸 만들기 (위: 발표 원문 / 아래: 번역) — 끄면 슬라이드 위에 자막이 겹쳐 뜸</label>
-  </div>
-
-  <div class="card">
-   <h2><span class="num">5</span>회의 정보 <span class="note" style="margin:0;font-weight:400">(회의록 맨 위에 들어갑니다)</span></h2>
-   <div class="row">
-    <div><label>일시</label><input id="mDate" type="datetime-local"></div>
-    <div><label>장소</label><input id="mPlace" placeholder="예: URA 센터 회의실"></div>
-   </div>
-   <div class="row" style="margin-top:10px">
-    <div><label>기관</label><input id="mOrg" placeholder="예: Urban Redevelopment Authority"></div>
-    <div><label>참석자</label><input id="mPeople" placeholder="예: 이명섭 팀장 외 3명, URA 담당자 2명"></div>
-   </div>
-  </div>
-
-  <div class="card">
-   <h2><span class="num">6</span>30초 자막 테스트 <span class="note" style="margin:0;font-weight:400">(선택, 강력 권장)</span></h2>
-   <button id="btnTest">🎤 테스트 시작</button>
-   <span class="note">마이크 권한 창이 뜨면 '허용'을 누르고 말해 보세요.</span>
-   <div id="testBox"><span style="opacity:.5">여기에 자막이 나타납니다</span></div>
-  </div>
-
-  <div class="startbar">
-   <button id="btnStart" class="primary big">▶ 발표 시작</button>
-   <button id="btnGoMinutes">회의록 보기</button>
-  </div>
-
-  <div class="card" style="margin-top:18px">
-   <h2>발표 중 단축키</h2>
-   <div class="keys">
-    <div><kbd>→</kbd> <kbd>PgDn</kbd> <kbd>Space</kbd> 다음 장</div>
-    <div><kbd>←</kbd> <kbd>PgUp</kbd> 이전 장</div>
-    <div><kbd>F</kbd> 전체 화면</div>
-    <div><kbd>C</kbd> 자막 숨기기/보이기</div>
-    <div><kbd>+</kbd> <kbd>-</kbd> 자막 크기</div>
-    <div><kbd>L</kbd> 발표 언어 전환(한↔영)</div>
-    <div><kbd>M</kbd> 방금 문장 '중요' 표시</div>
-    <div><kbd>Esc</kbd> 발표 종료 → 회의록</div>
-    <div>📱 태블릿: 화면 오른쪽 터치=다음, 왼쪽 ⅓=이전, 오른쪽 아래 페이지 번호 터치=메뉴</div>
-   </div>
-   <p class="note">기록은 말할 때마다 이 기기의 브라우저에 자동 저장됩니다. 창이 꺼져도 다시 열면 이어서 할 수 있습니다.</p>
-  </div>
- </div>
+<section class="box" id="envWarn" hidden></section>
+<section class="box" id="restore" hidden>
+<h2>이전에 저장된 기록이 있습니다</h2>
+<p class="sb" id="restoreInfo"></p>
+<div class="row"><button id="btnResume" class="primary">이어서 하기</button><button id="btnRestoreMinutes">회의록 보기·저장</button><button id="btnDiscard">지우고 새로 시작</button></div>
 </section>
+
+<section class="box">
+<h2><span class="n">1</span>발표자료</h2>
+<div class="drop" id="drop"><div class="t"><b>PDF · PPTX · HTML</b>끌어다 놓거나 [파일 선택]. 원본 모양 그대로 보여 주고, 글자는 통역 참고로 씁니다. 파일은 이 기기 안에서만 엽니다.</div><label class="btn" for="file">파일 선택</label><input type="file" id="file" accept=".pdf,.pptx,.html,.htm,application/pdf,text/html,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden></div>
+<div class="row"><button id="btnSampleHtml">예시 HTML 자료로 시험</button><span class="sb">원본과 똑같아야 하면 PDF가 가장 정확합니다(PPTX는 글꼴 등이 조금 달라질 수 있음). PPT(옛 형식)·HWP·Keynote는 PDF로 저장해서 올려 주세요.</span></div>
+<div id="prog"><i id="progBar"></i></div>
+<p class="sb" id="fileMeta">올린 자료 없음.</p>
+<img id="thumb" alt="첫 쪽 미리보기" hidden>
+</section>
+
+<section class="box" id="termBox">
+<h2><span class="n">2</span>참고자료 · 자료 용어 <span class="sb">(손으로 쓰는 용어집 없음 — 올린 자료의 글자에서 자동으로)</span></h2>
+<p class="sb" id="termInfo">발표자료나 참고자료를 올리면 여기에 기준 용어가 표시됩니다.</p>
+<div class="row"><label class="btn" for="refFile">＋ 참고자료 추가</label><input type="file" id="refFile" multiple accept=".pdf,.pptx,.html,.htm,.txt,.md,.csv,application/pdf,text/html,text/plain" hidden><span class="sb">상대 기관 PPT, 사업 설명서 등(PDF·PPTX·HTML·TXT, 여러 개). 화면에 띄우지 않고 글자만 씁니다. 이 기기에만 저장됩니다.</span></div>
+<div id="refList"></div>
+<div class="tsub">한·영 짝 (번역할 때 이 표기로 고정)</div><div id="pairChips" class="chips"></div>
+<div class="tsub">바로잡기 기준 용어</div><div id="termChips" class="chips"></div>
+<label class="check"><input type="checkbox" id="optAutoFix" checked> 자료 속 용어로 잘못 들린 말 자동 교정 (한국어·영어)</label>
+<label class="check"><input type="checkbox" id="optKeepEn" checked> 짝이 없는 영어 기관명·약어는 번역하지 않고 원어 그대로 (예: Urban Redevelopment Authority)</label>
+<div class="tsub">용어 시험 — 잘못 들린 말을 넣어 보세요</div>
+<div class="row"><input type="text" id="fixIn" maxlength="300" placeholder="예: 원주 시청은 탄소 중닙을 위해 … / We met the land transport authorty"><button id="btnFixCard">번역해 보기</button></div>
+<div id="fixOut" class="sb"></div><div id="fixTr" class="sb"></div>
+</section>
+
+<section class="box">
+<h2><span class="n">3</span>귀 (음성인식)</h2>
+<div class="radio">
+<label><input type="radio" name="asr" value="whisper"> Whisper — 말마다 언어 자동 판단, 한·영 섞어도 됨, <b>음성이 기기 밖으로 안 나감</b> (PC 크롬 권장)</label>
+<label><input type="radio" name="asr" value="web" checked> 가벼운 모드 — 브라우저 내장 (아이패드·저사양), <b>음성이 브라우저 회사 서버로 전송</b>, 언어는 직접 선택</label>
+</div>
+<div class="row" id="whOpts" hidden><span class="sb">Whisper 크기</span><select id="whModel"><option value="small">small — 기본, 대부분의 노트북 (약 330MB)</option><option value="turbo">turbo — 그래픽 좋은 PC, 더 정확 (약 600MB, 테스트 필요)</option></select><button id="btnWhLoad" hidden>⬇ Whisper 내려받기</button></div>
+<div id="langRow"><div class="sb" style="margin-bottom:4px">가벼운 모드의 발표 언어 (발표 중 <kbd>L</kbd> 로 바꿈)</div>
+<div class="radio"><label><input type="radio" name="lang" value="ko" checked> 한국어로 발표 → 영어 번역</label><label><input type="radio" name="lang" value="en"> 영어로 발표 → 한국어 번역</label></div></div>
+<div id="asrStatus" class="status"></div>
+</section>
+
+<section class="box">
+<h2><span class="n">4</span>번역</h2>
+<label class="check"><input type="checkbox" id="optTranslate" checked> 번역도 함께 표시 (시청 내부 회의는 끄고 회의록만)</label>
+<div class="radio">
+<label><input type="radio" name="tre" value="auto" checked> 자동 (추천)</label>
+<label><input type="radio" name="tre" value="chrome"> 크롬 내장 (PC 크롬)</label>
+<label><input type="radio" name="tre" value="hf"> 허깅페이스 모델 (아이패드·모든 기기)</label>
+</div>
+<div id="trStatus" class="status">번역 상태 확인 중…</div>
+<button id="btnTrLoad" hidden>⬇ 번역 모델 내려받기</button>
+<div class="tsub">번역 비교 — 엔진별 번역을 나란히 (자료 용어 적용)</div>
+<div class="row"><input type="text" id="cmpIn" placeholder="예: 오늘은 싱가포르의 QR 반납 제도를 원주시에 어떻게 적용할 수 있는지 여쭙고 싶습니다."><button id="btnCmp">비교</button></div>
+<div id="cmpOut"></div>
+<p class="sb">자동: PC 크롬이면 크롬 내장(품질·속도 가장 좋음), 아이패드 등은 허깅페이스 모델(한→영 약 110MB · 영→한 약 850MB, PC 전용·실험용). 번역은 두 엔진 모두 이 기기 안에서 처리됩니다. 와이파이에서 미리 받아 두세요.</p>
+</section>
+
+<section class="box">
+<h2><span class="n">5</span>화자 · 화면</h2>
+<p class="sb">말한 언어로 자동 구분합니다: <b>한국어 → A</b>, <b>영어 → B</b>. 다른 사람이 말하면 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> 키나 오른쪽 위 화자 칩을 누르세요(방금 나온 카드도 함께 바뀜). 언어가 바뀌면 다시 자동, <kbd>0</kbd> 은 바로 자동으로.</p>
+<div class="grid2">
+<label>A (한국어 기본)<input type="text" id="spA" maxlength="20" placeholder="발표자"></label>
+<label>B (영어 기본)<input type="text" id="spB" maxlength="20" placeholder="상대 기관"></label>
+<label>C (키 3)<input type="text" id="spC" maxlength="20" placeholder="질문자"></label>
+</div>
+<div class="row"><span class="sb">오른쪽 통역 칸 폭</span><button data-w="30">30%</button><button data-w="36">36%</button><button data-w="42">42%</button><button data-w="50">50%</button></div>
+<div class="row"><label class="sb">통역 글자 <input type="range" id="fs" min="70" max="220" step="10" value="100"> <span id="fsVal">100%</span></label><label class="sb"><input type="checkbox" id="showOrg" checked> 들린 말(원문) 보이기</label><label class="sb"><input type="checkbox" id="showSide" checked> 오른쪽 칸 보이기</label></div>
+</section>
+
+<section class="box">
+<h2><span class="n">6</span>회의 정보 <span class="sb">(회의록 맨 위에 들어갑니다)</span></h2>
+<div class="grid2">
+<label>일시<input type="datetime-local" id="mDate"></label>
+<label>장소<input type="text" id="mPlace" placeholder="예: URA 센터 회의실"></label>
+<label>기관<input type="text" id="mOrg" placeholder="예: Urban Redevelopment Authority"></label>
+<label>참석자<input type="text" id="mPeople" placeholder="예: 이명섭 팀장 외 3명, URA 담당자 2명"></label>
+</div>
+</section>
+
+<section class="box">
+<h2><span class="n">7</span>30초 자막 테스트 <span class="sb">(선택, 강력 권장)</span></h2>
+<div class="row"><button id="btnTest">🎤 테스트 시작</button><span class="sb">마이크 권한 창이 뜨면 '허용'을 누르고 말해 보세요.</span></div>
+<div id="testBox"><span style="opacity:.5">여기에 자막이 나타납니다</span></div>
+</section>
+
+<section class="box">
+<h2>발표 중 키 · 리모컨</h2>
+<ul class="keys">
+<li><b>리모컨(프레젠터)</b>: 다음/이전 버튼이 보내는 <kbd>PgDn</kbd> <kbd>PgUp</kbd>·<kbd>→</kbd> <kbd>←</kbd> 로 넘어갑니다. 슬라이드쇼 버튼(<kbd>F5</kbd>)은 무시(새로고침 방지), 화면 끄기 버튼(<kbd>B</kbd> <kbd>.</kbd>)은 슬라이드만 까맣게(통역 칸은 유지), <kbd>Esc</kbd> 는 <b>2초 안에 두 번</b> 눌러야 종료.</li>
+<li>다음 <kbd>→</kbd> <kbd>PgDn</kbd> <kbd>Space</kbd> <kbd>↓</kbd> · 이전 <kbd>←</kbd> <kbd>PgUp</kbd> <kbd>↑</kbd> · 처음/끝 <kbd>Home</kbd> <kbd>End</kbd> · 화면 오른쪽 터치=다음, 왼쪽 ⅓=이전</li>
+<li>화자 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> · 자동 <kbd>0</kbd> · 언어 전환(가벼운 모드) <kbd>L</kbd> · 방금 문장 중요 <kbd>M</kbd></li>
+<li><kbd>F</kbd> 전체화면 · <kbd>C</kbd> 통역 칸 숨김/보임 · <kbd>W</kbd> 칸 폭 · <kbd>+</kbd> <kbd>−</kbd> 통역 글자</li>
+<li>HTML 자료는 자료 안의 목차·버튼도 그대로 작동합니다(문서 안 링크는 스크롤, 인터넷 링크는 새 탭).</li>
+<li>기록은 말할 때마다 이 기기 브라우저에 자동 저장됩니다. 창이 꺼져도 다시 열면 이어서 할 수 있습니다.</li>
+</ul>
+</section>
+
+<div class="startbar"><button id="btnStart" class="primary">▶ 발표 시작</button><button id="btnGoMinutes">회의록 보기</button></div>
+</main>
 
 <!-- ===================== 2. 발표 화면 ===================== -->
-<section id="present" hidden>
- <div id="stage"><img id="slide" alt="" hidden><div id="noslide" hidden>슬라이드 없음 (자막만 표시)</div></div>
- <div id="cap" class="empty">
-  <div class="capbox srcbox"><div class="lbl" id="lblSrc">원문</div><div class="lines" id="capSrc"></div></div>
-  <div class="capbox tgtbox" id="tgtBox"><div class="lbl" id="lblTgt">번역</div><div class="lines" id="capTgt"></div></div>
- </div>
- <div id="pageNo" title="메뉴"><span id="dot"></span><span id="pageTxt">–</span><span style="opacity:.7">☰</span></div>
- <div id="menu" hidden>
-  <button data-m="full">⛶ 전체 화면</button>
-  <button data-m="cap">💬 자막 숨기기/보이기</button>
-  <button data-m="big">＋ 자막 크게</button>
-  <button data-m="small">－ 자막 작게</button>
-  <button data-m="lang">🔁 발표 언어 전환</button>
-  <button data-m="imp">★ 방금 문장 중요</button>
-  <button data-m="end" class="end">■ 발표 종료 → 회의록</button>
- </div>
- <div id="toast"></div>
-</section>
+<div id="present" hidden>
+<div id="stage">
+<img id="pdfImg" alt="" hidden>
+<div id="pptxBox" hidden></div>
+<iframe id="htmlFrame" title="HTML 발표자료" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox" hidden></iframe>
+<div id="stageMsg">슬라이드 없음 (통역 칸만 표시)</div>
+<div id="blackout" hidden></div>
+<div id="ctl"><span id="dot" title="마이크"></span><button id="bPrev">◀</button><span id="pageNo">-</span><button id="bNext">▶</button><button id="bSide">통역 칸</button><button id="bFull">전체화면</button><button id="bImp">★ 중요</button><button id="bEnd">■ 종료</button></div>
+</div>
+<aside id="side">
+<div id="topic"><span class="tag">지금 주제</span><span><span id="topicText">-</span><span id="topicTr"></span></span></div>
+<div id="sideHead"><span class="chip ca" data-sp="A">1 · A</span><span class="chip cb" data-sp="B">2 · B</span><span class="chip cc" data-sp="C">3 · C</span><span class="chip" data-sp="0">0 · 자동</span><span class="sp"></span><span class="chip" id="langInd">언어 대기</span></div>
+<div id="capList"><div class="empty">말을 시작하면 여기에 말한 사람별 통역 카드가 뜹니다.</div></div>
+<div id="sideCtl"><span class="sb" id="earInd">-</span><span class="sp"></span><button id="fsDown">가−</button><button id="fsUp">가+</button></div>
+</aside>
+</div>
 
-<!-- ===================== 3. 회의록 화면 ===================== -->
-<section id="minutes" hidden>
- <div class="wrap" style="max-width:1100px">
-  <h1>회의록</h1>
-  <p class="sub">잘못 인식된 고유명사만 고친 뒤 저장하세요. 고친 내용도 자동 저장됩니다.</p>
-  <div class="card">
-   <div class="row">
-    <div><label>일시</label><input id="eDate" type="datetime-local"></div>
-    <div><label>장소</label><input id="ePlace"></div>
-   </div>
-   <div class="row" style="margin-top:10px">
-    <div><label>기관</label><input id="eOrg"></div>
-    <div><label>참석자</label><input id="ePeople"></div>
-   </div>
-  </div>
-  <div class="toolbar">
-   <button id="btnTxt" class="primary">📄 텍스트(.txt) 저장</button>
-   <button id="btnMd" class="primary">📝 마크다운(.md) 저장</button>
-   <button id="btnBack">▶ 발표 계속</button>
-   <button id="btnSetup">준비 화면</button>
-   <button id="btnNew">🗑 새 회의 시작</button>
-  </div>
-  <div class="card">
-   <h2 style="justify-content:space-between">요약 정보 <span class="note" style="margin:0;font-weight:400">(저장 파일 맨 위에 들어갑니다)</span></h2>
-   <div id="sumBox"></div>
-   <div class="row" style="flex:none;margin-top:10px">
-    <button id="btnAiSum" style="flex:none">🤖 AI 핵심 요약 만들기 (PC 크롬 · 테스트 필요)</button>
-   </div>
-   <div id="aiSumStatus" class="note"></div>
-  </div>
-  <div id="mCount" class="note"></div>
-  <div class="mrow head"><div>시각</div><div>슬라이드</div><div>중요</div><div>원문</div><div class="tgtcol">번역</div><div></div></div>
-  <div id="mList"></div>
- </div>
+<!-- ===================== 3. 회의록 ===================== -->
+<main id="minutes" hidden>
+<h1>회의록</h1>
+<p class="sb">잘못 인식된 고유명사만 고친 뒤 저장하세요. 고친 내용도 자동 저장됩니다. 화자 칸을 누르면 A→B→C로 바뀝니다.</p>
+<section class="box"><div class="grid2">
+<label>일시<input type="datetime-local" id="eDate"></label>
+<label>장소<input type="text" id="ePlace"></label>
+<label>기관<input type="text" id="eOrg"></label>
+<label>참석자<input type="text" id="ePeople"></label>
+</div></section>
+<div class="toolbar"><button id="btnTxt" class="primary">📄 텍스트(.txt) 저장</button><button id="btnMd" class="primary">📝 마크다운(.md) 저장</button><button id="btnBack">▶ 발표 계속</button><button id="btnSetup">준비 화면</button><button id="btnNew">🗑 새 회의 시작</button></div>
+<section class="box">
+<h2>요약 정보 <span class="sb">(저장 파일 맨 위에 들어갑니다)</span></h2>
+<div id="sumBox"></div>
+<div class="row" style="margin-top:8px"><button id="btnAiSum">🤖 AI 핵심 요약 만들기 (PC 크롬 · 테스트 필요)</button></div>
+<div id="aiSumStatus" class="sb"></div>
 </section>
+<p class="sb" id="mCount"></p>
+<div class="mrow head"><div>시각</div><div>슬라이드</div><div>화자</div><div>중요</div><div>원문</div><div class="tgtcol">번역</div><div></div></div>
+<div id="mList"></div>
+</main>
 
+<div id="toast"></div>
+<div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
-/* =========================================================
-   발표 통역 자막 도우미 — 1단계 (크롬 내장 엔진)
-   ========================================================= */
-const $ = id => document.getElementById(id);
-const LANGS = {
-  ko:{bcp:'ko-KR', name:'한국어', tag:'KO'},
-  en:{bcp:'en-US', name:'영어',   tag:'EN'}
+/* ===== S0 최소 코어: 기록·오류 띠 ===== */
+var VB={v:'0.4.0',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+VB.$=function(id){return document.getElementById(id);};
+VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
+VB.tm=function(){return new Date().toTimeString().slice(0,8);};
+VB.log=function(m){VB.logs.push(VB.tm()+' '+m);if(VB.logs.length>80)VB.logs.shift();};
+VB.err=function(m){VB.errors.push(VB.tm()+' '+m);if(VB.errors.length>30)VB.errors.shift();var b=VB.$('errbar');if(b){b.textContent='오류: '+m+' (화면 캡처해 주세요 · 눌러서 닫기)';b.className='show';}};
+window.addEventListener('error',function(e){VB.err((e.message||'오류')+' ['+String(e.filename||'').split('/').pop()+':'+(e.lineno||0)+']');});
+window.addEventListener('unhandledrejection',function(e){var r=e.reason;VB.err('처리 안 된 오류: '+(r&&r.message?r.message:String(r)));});
+if(window.self!==window.top){try{document.documentElement.innerHTML='<body style="background:#fff;font:16px sans-serif;padding:30px">이 화면은 발표자료 칸 안에서 열리지 않습니다.</body>';}catch(e){}throw new Error('틀 안에서는 실행 안 함');}
+(function(){var c=VB.$('jsChip');if(c){c.textContent='JS 작동 ✓';c.className='chip ok';}VB.log('시작 v'+VB.v);})();
+</script>
+<script>
+/* ===== S1 화면 틀: 화면 전환·설정·전체화면·화면 꺼짐 방지·키·리모컨·터치·진단 ===== */
+(function(){try{
+var $=VB.$,el=VB.el,NL='\n',each=Array.prototype.forEach;
+function modal(t,node){$('mTitle').textContent=t;var b=$('mBody');b.innerHTML='';b.appendChild(node);$('modal').className='show';}
+VB.modal=modal;
+VB.note=function(t,m){modal(t,el('p','',m));};
+$('mClose').addEventListener('click',function(){$('modal').className='';});
+$('modal').addEventListener('click',function(e){if(e.target===$('modal'))$('modal').className='';});
+$('errbar').addEventListener('click',function(){this.className='';});
+var tt=null;
+VB.toast=function(m,ms){var t=$('toast');t.textContent=m;t.className='show';clearTimeout(tt);tt=setTimeout(function(){t.className='';},ms||2500);};
+var SET={w:36,fs:100,org:true,side:true},WS=[30,36,42,50];
+try{var sv=JSON.parse(localStorage.getItem('pcap.view.v1')||localStorage.getItem('vb_set')||'null');if(sv)Object.keys(SET).forEach(function(k){if(sv[k]!==undefined)SET[k]=sv[k];});}catch(e){}
+if(WS.indexOf(SET.w)<0)SET.w=36;
+SET.fs=Math.max(70,Math.min(220,(+SET.fs)||100));
+VB.SET=SET;
+function apply(){
+  var r=document.documentElement.style;
+  r.setProperty('--sideW',SET.w+'vw');r.setProperty('--fs',String(SET.fs));
+  $('fs').value=SET.fs;$('fsVal').textContent=SET.fs+'%';
+  $('showOrg').checked=SET.org;$('showSide').checked=SET.side;
+  document.body.classList.toggle('noorg',!SET.org);
+  document.body.classList.toggle('noside',!SET.side);
+  each.call(document.querySelectorAll('[data-w]'),function(b){b.className=(+b.getAttribute('data-w')===SET.w)?'on':'';});
+  try{localStorage.setItem('pcap.view.v1',JSON.stringify(SET));}catch(e){}
+  if(VB.onLayout)setTimeout(VB.onLayout,30);
+}
+VB.applyView=apply;
+each.call(document.querySelectorAll('[data-w]'),function(b){b.addEventListener('click',function(){SET.w=+b.getAttribute('data-w');apply();});});
+$('fs').addEventListener('input',function(){SET.fs=+this.value;apply();});
+$('showOrg').addEventListener('change',function(){SET.org=this.checked;apply();});
+$('showSide').addEventListener('change',function(){SET.side=this.checked;apply();});
+VB.fsStep=function(d){SET.fs=Math.max(70,Math.min(220,SET.fs+d));apply();};
+VB.toggleSide=function(){SET.side=!SET.side;apply();};
+VB.cycleW=function(){SET.w=WS[(WS.indexOf(SET.w)+1)%WS.length];apply();};
+$('fsDown').addEventListener('click',function(){VB.fsStep(-10);});
+$('fsUp').addEventListener('click',function(){VB.fsStep(10);});
+$('bSide').addEventListener('click',VB.toggleSide);
+function isFull(){return !!(document.fullscreenElement||document.webkitFullscreenElement);}
+VB.isFull=isFull;
+VB.exitFull=function(){if(!isFull())return;var d=document,f=d.exitFullscreen||d.webkitExitFullscreen;try{var p=f.call(d);if(p&&p.catch)p.catch(function(){});}catch(e){}};
+VB.goFull=function(quiet){
+  if(isFull())return;
+  var r=document.documentElement,f=r.requestFullscreen||r.webkitRequestFullscreen;
+  if(!f){if(!quiet)VB.note('전체화면 없음','이 브라우저는 전체화면을 지원하지 않습니다. 화면을 가로로 두고, 사파리는 주소창 메뉴의 도구 막대 가리기로 대신하세요.');return;}
+  try{var p=f.call(r);if(p&&p.catch)p.catch(function(e){if(!quiet)VB.err('전체화면: '+e.message);});}catch(e){if(!quiet)VB.err('전체화면: '+e.message);}
 };
-const other = l => l === 'ko' ? 'en' : 'ko';
-const LS_KEY = 'pcap.session.v1';
-
-/* ---------- 상태 ---------- */
-const S = {
-  lang:'ko',            // 지금 발표자가 말하는 언어
-  translate:true,
-  trEngine:'auto',      // auto | chrome | hf
-  glossary:'',
-  aiSummary:'',
-  autoFix:true,
-  reserve:true,
-  meta:{date:'', place:'', org:'', people:''},
-  entries:[],           // {id,time,slide,lang,src,tgt,imp}
-  slides:[],            // 슬라이드 이미지 주소
-  pdfName:'',
-  page:1,
-  capSize:26,
-  capHidden:false,
-  presenting:false,
-  interim:null          // {src,tgt}
+VB.toggleFull=function(){if(isFull())VB.exitFull();else VB.goFull(false);};
+['fullscreenchange','webkitfullscreenchange'].forEach(function(ev){document.addEventListener(ev,function(){if(VB.inPresent&&!isFull())VB.toast('전체화면 해제됨 · F 또는 아래 [전체화면]으로 다시',3500);if(VB.onLayout)setTimeout(VB.onLayout,80);});});
+var wl=null,wantWake=false;
+function wake(on){
+  wantWake=on;
+  if(!on){if(wl){try{var p=wl.release();if(p&&p.catch)p.catch(function(){});}catch(e){}wl=null;}return;}
+  if(!navigator.wakeLock){VB.R.wake='지원 안 함';return;}
+  navigator.wakeLock.request('screen').then(function(l){wl=l;VB.R.wake='켬';l.addEventListener('release',function(){wl=null;});}).catch(function(e){VB.R.wake='실패: '+e.message;});
+}
+document.addEventListener('visibilitychange',function(){if(wantWake&&!wl&&document.visibilityState==='visible')wake(true);});
+/* 화면 전환: setup | present | minutes */
+VB.view=function(id){
+  ['setup','present','minutes'].forEach(function(x){$(x).hidden=(x!==id);});
+  var was=VB.inPresent;VB.inPresent=(id==='present');
+  if(VB.inPresent){apply();wake(true);if(VB.onPresent){try{VB.onPresent();}catch(e){VB.err('발표 화면: '+e.message);}}}
+  else{if(was)VB.exitFull();wake(false);$('blackout').hidden=true;window.scrollTo(0,0);}
+  VB.log('화면 '+id);
 };
-
-/* =========================================================
-   저장 (localStorage: 기록 / IndexedDB: PDF 원본)
-   ========================================================= */
-let saveTimer=null;
-function saveSoon(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,400); }
-function saveNow(){
-  try{
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      v:1, savedAt:Date.now(), lang:S.lang, translate:S.translate, trEngine:S.trEngine, glossary:S.glossary, autoFix:S.autoFix, reserve:S.reserve,
-      meta:S.meta, entries:S.entries, aiSummary:S.aiSummary, pdfName:S.pdfName, page:S.page, capSize:S.capSize
-    }));
-  }catch(e){ console.warn('자동 저장 실패', e); }
+$('bFull').addEventListener('click',VB.toggleFull);
+$('present').addEventListener('click',function(e){var b=e.target&&e.target.closest?e.target.closest('button'):null;if(b)setTimeout(function(){try{b.blur();}catch(x){}},0);});
+/* --- 키: 키보드·리모컨(프레젠터)·HTML 자료 안에서 넘어온 키 --- */
+function keyName(key,code){
+  code=code||'';key=key||'';
+  if(/^Key[A-Z]$/.test(code))return code.charAt(3).toLowerCase();       // 한글 자판 상태에서도 F·C·L·M 작동
+  if(/^(Digit|Numpad)[0-9]$/.test(code))return code.slice(-1);
+  if(code==='Equal'||code==='NumpadAdd')return '+';
+  if(code==='Minus'||code==='NumpadSubtract')return '-';
+  if(code==='Period'||code==='NumpadDecimal')return '.';
+  return key.length===1?key.toLowerCase():key;
 }
-function loadSaved(){
-  try{ const t=localStorage.getItem(LS_KEY); return t?JSON.parse(t):null; }catch(e){ return null; }
-}
-function idb(){
-  return new Promise((res,rej)=>{
-    const r=indexedDB.open('pcap',1);
-    r.onupgradeneeded=()=>r.result.createObjectStore('files');
-    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
-  });
-}
-async function idbPut(key,val){ try{ const db=await idb(); await new Promise((res,rej)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(val,key);tx.oncomplete=res;tx.onerror=()=>rej(tx.error);}); }catch(e){ console.warn('PDF 보관 실패',e); } }
-async function idbGet(key){ try{ const db=await idb(); return await new Promise((res,rej)=>{const r=db.transaction('files').objectStore('files').get(key);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}); }catch(e){ return null; } }
-async function idbDel(key){ try{ const db=await idb(); db.transaction('files','readwrite').objectStore('files').delete(key);}catch(e){} }
-window.addEventListener('beforeunload', saveNow);
-document.addEventListener('visibilitychange', ()=>{ if(document.hidden) saveNow(); });
-setInterval(()=>{ if(S.presenting) saveNow(); }, 10000);
-
-/* =========================================================
-   PDF → 슬라이드 이미지 (한 번 그려 두면 인터넷이 끊겨도 유지)
-   ========================================================= */
-const PDF_WORKER_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-let pdfWorkerP=null;
-// 사파리(아이패드) 등은 다른 주소의 워커를 바로 못 띄우므로
-// ① 워커 코드를 받아 같은 주소(blob)로 실행 → ② 실패하면 화면 안에서 직접 실행
-function pdfWorkerReady(){
-  if(pdfWorkerP) return pdfWorkerP;
-  pdfWorkerP=(async()=>{
-    try{
-      const r=await fetch(PDF_WORKER_URL); if(!r.ok) throw new Error('HTTP '+r.status);
-      const code=await r.text();
-      const url=URL.createObjectURL(new Blob([code],{type:'text/javascript'}));
-      await new Promise((res,rej)=>{ const w=new Worker(url); w.onerror=e=>{w.terminate();rej(e);}; setTimeout(()=>{w.terminate();res();},300); });
-      pdfjsLib.GlobalWorkerOptions.workerSrc=url; return 'worker';
-    }catch(e){
-      console.warn('워커 방식 실패 → 화면 내 처리로 전환', e);
-      await new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=PDF_WORKER_URL; sc.onload=res; sc.onerror=()=>rej(new Error('PDF 처리 부품을 내려받지 못했습니다. 인터넷 연결을 확인하세요.')); document.head.appendChild(sc); });
-      pdfjsLib.GlobalWorkerOptions.workerSrc=PDF_WORKER_URL; return 'main';
-    }
-  })();
-  pdfWorkerP.catch(()=>{ pdfWorkerP=null; });
-  return pdfWorkerP;
-}
-async function loadPdf(buf, name){
-  if(!window.pdfjsLib){ $('pdfStatus').textContent='PDF 프로그램을 불러오지 못했습니다. 인터넷 연결 후 새로고침(F5) 하세요.'; return; }
-  $('pdfStatus').textContent='슬라이드 준비 중…';
-  await pdfWorkerReady();
-  S.slides.forEach(u=>URL.revokeObjectURL(u)); S.slides=[];
-  const pdf = await pdfjsLib.getDocument({data:new Uint8Array(buf.slice(0))}).promise;
-  let slidesText='';
-  const dpr = window.devicePixelRatio||1;
-  const W = Math.min(screen.width*dpr, 3840), H = Math.min(screen.height*dpr, 2160);
-  for(let i=1;i<=pdf.numPages;i++){
-    const page = await pdf.getPage(i);
-    const v1 = page.getViewport({scale:1});
-    const vp = page.getViewport({scale:Math.min(W/v1.width, H/v1.height)});
-    const c = document.createElement('canvas'); c.width=Math.floor(vp.width); c.height=Math.floor(vp.height);
-    const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
-    await page.render({canvasContext:ctx, viewport:vp}).promise;
-    try{ const tc=await page.getTextContent(); slidesText+=itemsText(tc.items)+'\n'; }catch(_){}
-    const blob = await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));
-    S.slides.push(URL.createObjectURL(blob));
-    page.cleanup();
-    $('pdfStatus').textContent=`슬라이드 준비 중… ${i} / ${pdf.numPages}`;
+var escAt=0;
+function H(n,a){if(VB.H[n])try{VB.H[n](a);}catch(e){VB.err('키 '+n+': '+e.message);}}
+VB.key=function(key,code,fromFrame,shift){
+  if(!VB.inPresent)return false;
+  var k=keyName(key,code);
+  var nx=(k==='ArrowRight'||k==='PageDown'||k===' '||k==='Spacebar'||k==='ArrowDown'||k==='Enter'),pv=(k==='ArrowLeft'||k==='PageUp'||k==='ArrowUp'||k==='Backspace');
+  if(nx||pv){
+    if(fromFrame)return false;                                          // HTML 자료 안에서는 자료가 직접 넘김·스크롤
+    if((k==='ArrowDown'||k==='ArrowUp')&&VB.S&&VB.S.type==='html')return false;
+    if(VB.nav)VB.nav(nx?1:-1);return true;
   }
-  S.pdfName=name; S.slidesText=slidesText; Terms.rebuild();
-  if(S.page>S.slides.length) S.page=1;
-  $('pdfStatus').innerHTML=`✅ <b>${esc(name)}</b> — ${S.slides.length}장 준비 완료`;
-  $('thumb').src=S.slides[0]; $('thumb').hidden=false;
-  saveSoon();
+  if(k==='Home'||k==='End'){if(fromFrame)return false;if(VB.navTo)VB.navTo(k==='Home'?0:1e9);return true;}
+  if(k==='F5'){VB.toast('리모컨의 슬라이드쇼 버튼(F5)은 무시합니다',1800);return true;}  // 새로고침되어 발표가 끊기지 않게
+  if(k==='Escape'||k==='Esc'){
+    var t=Date.now();
+    if(t-escAt<2000){escAt=0;H('end');}
+    else{escAt=t;VB.toast('Esc 를 2초 안에 한 번 더 누르면 발표를 마치고 회의록으로 갑니다',2000);}
+    return true;
+  }
+  if(k==='b'||k==='.'){var bo=$('blackout');bo.hidden=!bo.hidden;VB.toast(bo.hidden?'슬라이드 다시 보임':'슬라이드 가림 (B 또는 . 로 다시 보임) — 통역은 계속',1800);return true;}
+  if(k==='f'){VB.toggleFull();return true;}
+  if(k==='c'){VB.toggleSide();return true;}
+  if(k==='w'){VB.cycleW();return true;}
+  if(k==='+'||k==='='){VB.fsStep(10);return true;}
+  if(k==='-'||k==='_'){VB.fsStep(-10);return true;}
+  if(k==='1'||k==='2'||k==='3'){H('speaker','ABC'.charAt(+k-1));return true;}
+  if(k==='0'){H('speaker','');return true;}
+  if(k==='l'){H('lang');return true;}
+  if(k==='m'){H('imp');return true;}
+  return false;
+};
+document.addEventListener('keydown',function(e){
+  var t=e.target,tg=t&&t.tagName;
+  if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT'||(t&&t.isContentEditable))return;
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(VB.key(e.key,e.code,false,e.shiftKey))e.preventDefault();
+});
+window.addEventListener('message',function(e){
+  var f=$('htmlFrame');if(!f||e.source!==f.contentWindow)return;
+  var d=e.data;if(!d)return;
+  if(d.vb==='ready'){if(VB.frameReadyMsg)VB.frameReadyMsg();return;}
+  if(d.vb==='link'){VB.log('자료 안 링크를 새 탭으로 엶');return;}
+  if(d.vb==='err'){if(VB.R.html){VB.R.html.frameErrors=(VB.R.html.frameErrors||0)+1;(VB.R.html.frameErrMsgs=VB.R.html.frameErrMsgs||[]).length<5&&VB.R.html.frameErrMsgs.push(d.msg);}VB.log('HTML 자료 안 오류: '+d.msg);return;}
+  if(d.vb==='stat'){if(VB.R.html){VB.R.html.visibleChars=d.chars;VB.R.html.imgs=d.imgs;VB.R.html.canvas=d.canvas;}
+    if(!d.chars&&!d.imgs&&!d.canvas)VB.err('HTML 자료가 비어 보입니다'+((VB.R.html&&VB.R.html.frameErrMsgs)?' — 자료 안 오류: '+VB.R.html.frameErrMsgs[0]:'')+' · [진단 보기]를 캡처해 주세요');
+    return;}
+  if(d.vb!=='key')return;
+  if(VB.R.html)VB.R.html.bridgeKeys=(VB.R.html.bridgeKeys||0)+1;
+  VB.key(d.key,d.code,true);
+});
+$('stage').addEventListener('click',function(e){
+  if(e.target.closest&&e.target.closest('#ctl'))return;
+  var bo=$('blackout');if(!bo.hidden){bo.hidden=true;return;}
+  if(!VB.S||!VB.S.type||VB.S.type==='html')return;
+  var r=this.getBoundingClientRect();
+  if(VB.nav)VB.nav((e.clientX-r.left)<r.width/3?-1:1);
+});
+$('bPrev').addEventListener('click',function(){if(VB.nav)VB.nav(-1);});
+$('bNext').addEventListener('click',function(){if(VB.nav)VB.nav(1);});
+$('btnDiag').addEventListener('click',function(){
+  var txt=JSON.stringify(VB.report?VB.report():{},null,1)+NL+NL+'최근 오류'+NL+(VB.errors.slice(-5).join(NL)||'(없음)')+NL+NL+'최근 기록'+NL+(VB.logs.slice(-15).join(NL)||'(없음)');
+  var d=el('div');d.appendChild(el('p','sb','파일 이름·내용·기록 문장은 들어가지 않습니다. 오류가 나면 이 화면을 캡처하거나 [복사]해서 대화에 붙여 주세요.'));
+  var b=el('button','','복사');b.addEventListener('click',function(){var ok=function(){b.textContent='복사됨';};if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(ok,function(){});});
+  d.appendChild(b);d.appendChild(el('pre','',txt));
+  modal('진단 보기',d);
+});
+apply();
+VB.log('S1 화면 틀 연결됨');
+}catch(e){VB.err('S1 '+e.message);}})();
+</script>
+<script>
+/* ===== S2 원본 보기: PDF(pdf.js 3.11.174) · PPTX(@aiden0z/pptx-renderer 1.4.0) · HTML(격리 틀) ===== */
+(function(){try{
+var $=VB.$,R=VB.R;
+var PDF_CDN='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+var PDF_DIST='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/';
+var PPTX_URL='https://cdn.jsdelivr.net/npm/@aiden0z/pptx-renderer@1.4.0/dist/aiden0z-pptx-renderer.browser.es.js';
+var img=$('pdfImg'),pbox=$('pptxBox'),frame=$('htmlFrame'),msg=$('stageMsg');
+var S={type:'',name:'',n:0,cur:0,gen:0,pages:[],texts:[],titles:[],buf:null,html:'',viewer:null,mod:null,shown:-1,want:0,busy:false,frameReady:false,pdfDoc:null,pdfWorker:'',pdfLibMs:null,pptxLibMs:null};
+VB.S=S;
+function now(){return (window.performance&&performance.now)?performance.now():Date.now();}
+function ms(t0){return Math.round(now()-t0);}
+function med(a){if(!a||!a.length)return null;var b=a.slice().sort(function(x,y){return x-y;}),m=b.length>>1;return b.length%2?b[m]:Math.round((b[m-1]+b[m])/2);}
+VB.med=med;
+function prog(p){$('progBar').style.width=Math.round(p*100)+'%';}
+function meta(t){$('fileMeta').textContent=t;}
+function showMsg(t){msg.textContent=t||'';msg.hidden=!t;}
+function loadScript(src){return new Promise(function(ok,ng){var s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=function(){ng(new Error('불러오기 실패: '+src.split('/').pop()+' (인터넷 연결 확인)'));};document.head.appendChild(s);});}
+function pageNo(){$('pageNo').textContent=S.type==='html'?'HTML':(S.n?(S.cur+1)+' / '+S.n:'-');}
+function show(i){
+  var t=S.type;
+  img.hidden=(t!=='pdf');pbox.hidden=(t!=='pptx');frame.hidden=(t!=='html');
+  if(t==='pdf'){
+    if(S.pages[i]){var t0=now();img.onload=function(){R.nav.push(ms(t0));if(R.nav.length>300)R.nav.shift();};img.src=S.pages[i];showMsg('');}
+    else showMsg('그리는 중… ('+(i+1)+'쪽)');
+  }else if(t==='pptx'){if(VB.inPresent)pptxGo(i);else showMsg('');}
+  else if(t==='html')showMsg('');
+  else showMsg('슬라이드 없음 (통역 칸만 표시)');
+  pageNo();
+  if(VB.onPage)try{VB.onPage();}catch(e){VB.err('쪽 바뀜: '+e.message);}
 }
-async function onPdfFile(file){
-  if(!file) return;
-  if(file.type!=='application/pdf' && !/\.pdf$/i.test(file.name)){ $('pdfStatus').textContent='PDF 파일만 올릴 수 있습니다.'; return; }
-  const buf = await file.arrayBuffer();
-  S.page=1;
-  try{ await loadPdf(buf, file.name); await idbPut('pdf',{name:file.name,data:buf}); }
-  catch(e){ console.error(e); $('pdfStatus').textContent='PDF를 여는 중 오류: '+e.message; }
+function reset(){
+  S.gen++;
+  if(S.viewer){try{S.viewer.destroy();}catch(e){}S.viewer=null;}
+  if(S.pdfDoc){try{S.pdfDoc.destroy();}catch(e){}S.pdfDoc=null;}
+  S.pages.forEach(function(u){try{URL.revokeObjectURL(u);}catch(e){}});
+  S.type='';S.name='';S.n=0;S.cur=0;S.pages=[];S.texts=[];S.titles=[];S.buf=null;S.html='';S.shown=-1;S.frameReady=false;
+  pbox.innerHTML='';img.removeAttribute('src');
+  if(frame.hasAttribute('srcdoc'))frame.srcdoc='';
+  $('thumb').hidden=true;$('thumb').removeAttribute('src');prog(0);
+  R.file=null;R.pdf=null;R.pptx=null;R.html=null;R.nav=[];R.eye='';
+  Array.prototype.forEach.call(document.querySelectorAll('[data-eye]'),function(b){b.className='';});
+  show(0);
+  if(VB.onTexts)VB.onTexts();
 }
-$('drop').onclick=()=>$('pdfFile').click();
-$('pdfFile').onchange=e=>onPdfFile(e.target.files[0]);
-$('drop').ondragover=e=>{e.preventDefault();$('drop').classList.add('over');};
-$('drop').ondragleave=()=>$('drop').classList.remove('over');
-$('drop').ondrop=e=>{e.preventDefault();$('drop').classList.remove('over');onPdfFile(e.dataTransfer.files[0]);};
-
-/* =========================================================
-   용어집·참고자료 — 잘못 들린 말 자동 교정 (기기 안에서만 처리)
-   ========================================================= */
+async function readText(f){
+  var u8=new Uint8Array(await f.arrayBuffer()),s=new TextDecoder('utf-8').decode(u8);
+  if(s.indexOf('\uFFFD')>=0){try{s=new TextDecoder('euc-kr').decode(u8);}catch(e){}}
+  return s;
+}
+async function loadFile(f){
+  if(!f)return;
+  reset();
+  var g=S.gen,nm=f.name||'',ext=nm.indexOf('.')>=0?nm.split('.').pop().toLowerCase():'';
+  R.file={type:ext,sizeKB:Math.round(f.size/1024)};S.name=nm;
+  meta('여는 중…');
+  try{
+    if(ext==='pdf')await loadPdf(f,g);
+    else if(ext==='pptx')await loadPptx(f,g);
+    else if(ext==='html'||ext==='htm'){var t=await readText(f);if(g===S.gen)loadHtml(t,'파일');}
+    else if(['ppt','pps','ppsx','key','hwp','hwpx','doc','docx','odp'].indexOf(ext)>=0)throw new Error('.'+ext+' 형식은 바로 열 수 없습니다. PDF로 저장(내보내기)해서 올려 주세요');
+    else throw new Error('지원하지 않는 형식입니다(.'+ext+'). PDF·PPTX·HTML만 됩니다');
+  }catch(e){
+    if(g!==S.gen)return;
+    S.type='';show(0);prog(0);
+    meta('열지 못했습니다: '+e.message);VB.err('파일 열기: '+e.message);if(R.file)R.file.error=e.message;
+  }
+  if(g===S.gen&&S.type&&VB.onDeck)try{VB.onDeck(f,S.type);}catch(e){}
+  if(g===S.gen&&VB.onTexts)VB.onTexts();
+}
+/* --- PDF: index (1)과 같은 방식(쪽마다 그림으로 그려 둠, 사파리용 워커 2단계) --- */
+async function pdfLib(){
+  if(window.pdfjsLib&&S.pdfWorker)return window.pdfjsLib;
+  var t0=now();
+  if(!window.pdfjsLib)await loadScript(PDF_CDN+'pdf.min.js');
+  var L=window.pdfjsLib;if(!L)throw new Error('pdf.js 초기화 실패');
+  try{
+    var r=await fetch(PDF_CDN+'pdf.worker.min.js');if(!r.ok)throw new Error('HTTP '+r.status);
+    L.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([await r.text()],{type:'text/javascript'}));
+    S.pdfWorker='blob 워커';
+  }catch(e){L.GlobalWorkerOptions.workerSrc=PDF_CDN+'pdf.worker.min.js';S.pdfWorker='주소 워커('+e.message+')';}
+  S.pdfLibMs=ms(t0);
+  return L;
+}
+function pdfOpts(buf){return {data:new Uint8Array(buf.slice(0)),cMapUrl:PDF_DIST+'cmaps/',cMapPacked:true,standardFontDataUrl:PDF_DIST+'standard_fonts/',isEvalSupported:false};}
+async function pdfOpen(L,buf){
+  try{return await L.getDocument(pdfOpts(buf)).promise;}
+  catch(e){
+    if(e&&e.name==='PasswordException')throw new Error('암호가 걸린 PDF는 열 수 없습니다. 암호를 푼 PDF로 저장해 주세요');
+    if(e&&e.name==='InvalidPDFException')throw new Error('PDF 파일이 손상되었거나 PDF가 아닙니다');
+    VB.log('PDF 1차 실패('+(e&&e.message)+'), 화면 안 실행으로 재시도');
+    if(!window.pdfjsWorker)await loadScript(PDF_CDN+'pdf.worker.min.js');
+    S.pdfWorker='화면 안 실행(재시도)';
+    return await L.getDocument(pdfOpts(buf)).promise;
+  }
+}
+async function loadPdf(f,g){
+  var t0=now();
+  meta('PDF 여는 중… (처음 한 번 pdf.js를 내려받습니다)');
+  var L=await pdfLib();if(g!==S.gen)return;
+  var buf=await f.arrayBuffer();if(g!==S.gen)return;
+  var doc=await pdfOpen(L,buf);
+  if(g!==S.gen){try{doc.destroy();}catch(e){}return;}
+  S.pdfDoc=doc;S.type='pdf';S.n=doc.numPages;S.pages=new Array(S.n);S.texts=new Array(S.n);
+  var dpr=window.devicePixelRatio||1,sw=screen.width||1280,sh=screen.height||720;
+  var W=Math.min(3840,Math.round(Math.max(sw,sh)*dpr)),H=Math.min(2160,Math.round(Math.min(sw,sh)*dpr));
+  R.pdf={worker:S.pdfWorker,libMs:S.pdfLibMs,openMs:ms(t0),target:[W,H],firstMs:null,totalMs:null,pageMs:[],textChars:[]};
+  show(0);
+  for(var i=0;i<S.n;i++){
+    var tp=now(),pg=await doc.getPage(i+1);
+    if(g!==S.gen)return;
+    var v1=pg.getViewport({scale:1}),sc=Math.min(W/v1.width,H/v1.height),vp=pg.getViewport({scale:sc});
+    var cv=document.createElement('canvas');cv.width=Math.max(1,Math.floor(vp.width));cv.height=Math.max(1,Math.floor(vp.height));
+    var cx=cv.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,cv.width,cv.height);
+    await pg.render({canvasContext:cx,viewport:vp}).promise;
+    var blob=await new Promise(function(ok){cv.toBlob(ok,'image/jpeg',0.92);});
+    cv.width=1;cv.height=1;
+    if(g!==S.gen)return;
+    if(!blob)throw new Error((i+1)+'쪽 그림 만들기 실패(메모리 부족일 수 있음)');
+    S.pages[i]=URL.createObjectURL(blob);
+    var tx='';try{var tc=await pg.getTextContent();tx=tc.items.map(function(it){return it.str||'';}).join(' ').replace(/\s+/g,' ').trim();S.titles[i]=VB.slideTitle?VB.slideTitle(tc.items,v1.height):'';}catch(e){}
+    S.texts[i]=tx;R.pdf.textChars.push(tx.length);
+    try{pg.cleanup();}catch(e){}
+    R.pdf.pageMs.push(ms(tp));
+    if(i===0){R.pdf.firstMs=ms(t0);$('thumb').src=S.pages[0];$('thumb').hidden=false;}
+    prog((i+1)/S.n);
+    meta('PDF '+S.n+'쪽 · '+R.file.sizeKB+'KB · 그리는 중 '+(i+1)+'/'+S.n+' (첫 쪽이 되면 발표 시작 가능)');
+    if(VB.inPresent&&S.cur===i)show(i);
+  }
+  R.pdf.totalMs=ms(t0);
+  var nt=R.pdf.textChars.filter(function(c){return !c;}).length;
+  meta('준비 완료: PDF '+S.n+'쪽 · '+R.file.sizeKB+'KB · 전체 '+(R.pdf.totalMs/1000).toFixed(1)+'초(쪽당 중앙값 '+med(R.pdf.pageMs)+'ms) · '+S.pdfWorker+(nt?' · 글자 없는 쪽 '+nt+'개(참고 글자 없음)':''));
+  VB.log('PDF 준비 '+S.n+'쪽');
+}
+/* --- PPTX: 장 수·글자는 직접 읽고(v0.2.0과 같은 ZIP 읽기), 그림은 렌더러가 그림 --- */
+var NS_A='http://schemas.openxmlformats.org/drawingml/2006/main',NS_P='http://schemas.openxmlformats.org/presentationml/2006/main',NS_R='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+function zipOpen(buf){
+  var u8=new Uint8Array(buf),dv=new DataView(buf),n=u8.length,eo=-1,i;
+  for(i=n-22;i>=0&&i>=n-65600;i--){if(dv.getUint32(i,true)===0x06054b50){eo=i;break;}}
+  if(eo<0)throw new Error('ZIP 구조를 찾지 못했습니다(손상·암호 파일이거나 PPTX가 아님)');
+  var cnt=dv.getUint16(eo+10,true),p=dv.getUint32(eo+16,true),ents={},td=new TextDecoder('utf-8');
+  for(var k=0;k<cnt;k++){
+    if(p+46>n||dv.getUint32(p,true)!==0x02014b50)break;
+    var nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true);
+    ents[td.decode(u8.subarray(p+46,p+46+nl))]={m:dv.getUint16(p+10,true),cs:dv.getUint32(p+20,true),lh:dv.getUint32(p+42,true)};
+    p+=46+nl+xl+cl;
+  }
+  return {u8:u8,dv:dv,e:ents};
+}
+async function zipGet(z,name){
+  var e=z.e[name];if(!e)return null;
+  var o=e.lh;
+  if(z.dv.getUint32(o,true)!==0x04034b50)throw new Error('ZIP 항목 오류: '+name);
+  var s=o+30+z.dv.getUint16(o+26,true)+z.dv.getUint16(o+28,true),data=z.u8.subarray(s,s+e.cs);
+  if(e.m===0)return data;
+  if(e.m!==8)throw new Error('지원하지 않는 압축 방식('+e.m+')');
+  var st=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(st).arrayBuffer());
+}
+function xmlDoc(u8){var d=new DOMParser().parseFromString(new TextDecoder('utf-8').decode(u8),'application/xml');if(d.getElementsByTagName('parsererror').length)throw new Error('XML 해석 실패');return d;}
+function paraText(p){var els=p.getElementsByTagName('*'),t='';for(var j=0;j<els.length;j++){var ln=els[j].localName;if(ln==='t')t+=els[j].textContent;else if(ln==='br'||ln==='tab')t+=' ';}return t.replace(/\s+/g,' ').trim();}
+async function pptxScan(buf){
+  var z=zipOpen(buf),order=[],i;
+  try{
+    var a=await zipGet(z,'ppt/presentation.xml'),b=await zipGet(z,'ppt/_rels/presentation.xml.rels');
+    if(a&&b){
+      var pd=xmlDoc(a),rr=xmlDoc(b).getElementsByTagName('Relationship'),map={},ids=pd.getElementsByTagNameNS(NS_P,'sldId');
+      for(i=0;i<rr.length;i++)map[rr[i].getAttribute('Id')]=rr[i].getAttribute('Target');
+      for(i=0;i<ids.length;i++){var t=map[ids[i].getAttributeNS(NS_R,'id')];if(t){t=t.indexOf('/')===0?t.slice(1):'ppt/'+t;if(z.e[t])order.push(t);}}
+    }
+  }catch(e1){order=[];}
+  if(!order.length){
+    var rx=/^ppt\/slides\/slide(\d+)\.xml$/,tmp=[],m;
+    Object.keys(z.e).forEach(function(nm){m=rx.exec(nm);if(m)tmp.push([parseInt(m[1],10),nm]);});
+    tmp.sort(function(x,y){return x[0]-y[0];});order=tmp.map(function(x){return x[1];});
+  }
+  var texts=[],titles=[],hidden=0;
+  for(i=0;i<order.length;i++){
+    var d=xmlDoc(await zipGet(z,order[i])),ps=d.getElementsByTagNameNS(NS_A,'p'),tx=[];
+    if(d.documentElement&&d.documentElement.getAttribute('show')==='0')hidden++;
+    for(var j=0;j<ps.length;j++){var s=paraText(ps[j]);if(s)tx.push(s);}
+    texts.push(tx.join(' '));
+    var ttl='',sps=d.getElementsByTagNameNS(NS_P,'sp');
+    for(var q=0;q<sps.length&&!ttl;q++){var ph=sps[q].getElementsByTagNameNS(NS_P,'ph')[0];if(ph&&/title/i.test(ph.getAttribute('type')||'')){var tp=sps[q].getElementsByTagNameNS(NS_A,'p'),tt=[];for(var u=0;u<tp.length;u++){var ts=paraText(tp[u]);if(ts)tt.push(ts);}ttl=tt.join(' ');}}
+    if(!ttl&&tx[0]&&tx[0].length<=45)ttl=tx[0];
+    titles.push(ttl.length<=60?ttl:'');
+  }
+  return {n:order.length,texts:texts,titles:titles,hidden:hidden};
+}
+async function pptxLib(){
+  if(S.mod)return S.mod;
+  var t0=now();
+  try{S.mod=await import(PPTX_URL);}catch(e){throw new Error('PPTX 렌더러를 불러오지 못했습니다('+e.message+'). 인터넷 연결을 확인하거나 PDF로 저장해서 올려 주세요');}
+  if(!S.mod||!S.mod.PptxViewer){S.mod=null;throw new Error('PPTX 렌더러 형식이 예상과 다릅니다(PptxViewer 없음)');}
+  S.pptxLibMs=ms(t0);
+  return S.mod;
+}
+async function loadPptx(f,g){
+  meta('PPTX 읽는 중… (처음 한 번 렌더러 약 2.3MB를 내려받습니다)');
+  var buf=await f.arrayBuffer();if(g!==S.gen)return;
+  var sc=null;
+  try{sc=await pptxScan(buf);}catch(e){VB.log('PPTX 직접 읽기 실패: '+e.message);}
+  if(g!==S.gen)return;
+  prog(.4);
+  await pptxLib();if(g!==S.gen)return;
+  prog(1);
+  S.type='pptx';S.buf=buf;S.n=sc?sc.n:0;S.texts=sc?sc.texts:[];S.titles=sc?sc.titles:[];S.shown=-1;
+  R.pptx={lib:'@aiden0z/pptx-renderer 1.4.0',libMs:S.pptxLibMs,countOwn:sc?sc.n:null,hidden:sc?sc.hidden:null,countLib:null,openMs:null,navMs:[],slideErr:0,nodeErr:0,textChars:sc?sc.texts.map(function(t){return t.length;}):[]};
+  var nt=sc?sc.texts.filter(function(t){return !t;}).length:0;
+  meta('준비 완료: PPTX '+(S.n||'?')+'장 · '+R.file.sizeKB+'KB · 렌더러 받기 '+(S.pptxLibMs!=null?(S.pptxLibMs/1000).toFixed(1)+'초':'-')+(sc&&sc.hidden?' · 숨긴 슬라이드 '+sc.hidden+'장':'')+(nt?' · 글자 없는 장 '+nt+'개':'')+' · 그림은 [발표 시작] 때 그립니다');
+  show(0);
+}
+function libCount(v){try{
+  if(v.presentation&&v.presentation.slides&&v.presentation.slides.length)return v.presentation.slides.length;
+  if(typeof v.slideCount==='number')return v.slideCount;
+  if(typeof v.getSlideCount==='function')return v.getSlideCount();
+}catch(e){}return null;}
+async function pptxOpen(){
+  var M=S.mod,t0=now(),v;
+  pbox.innerHTML='';
+  var box=document.createElement('div');box.id='pptxInner';pbox.appendChild(box);   // 렌더러가 높이를 바꿔도 바깥 칸은 화면 전체 유지
+  var opt={renderMode:'slide',fitMode:'contain',externalMedia:'block',pdfjs:false,
+    onSlideError:function(i,e){if(R.pptx)R.pptx.slideErr++;VB.err('PPTX '+(i+1)+'장 그리기 오류: '+(e&&e.message||e));},
+    onNodeError:function(id,e){if(R.pptx)R.pptx.nodeErr++;VB.log('PPTX 개체 오류('+id+'): '+(e&&e.message||e));}};
+  if(M.RECOMMENDED_ZIP_LIMITS)opt.zipLimits=M.RECOMMENDED_ZIP_LIMITS;
+  if(typeof M.PptxViewer.open==='function')v=await M.PptxViewer.open(S.buf,box,opt);
+  else{v=new M.PptxViewer(box,opt);await v.open(S.buf,{renderMode:'slide'});}
+  return {v:v,ms:ms(t0)};
+}
+async function pptxGo(i){
+  S.want=i;
+  if(S.busy)return;
+  S.busy=true;var g=S.gen;
+  try{
+    if(!S.viewer){
+      showMsg('PPTX 그리는 중…');
+      var o=await pptxOpen();
+      if(g!==S.gen){try{o.v.destroy();}catch(e){}S.busy=false;return;}
+      S.viewer=o.v;S.shown=0;
+      R.pptx.openMs=o.ms;R.pptx.countLib=libCount(o.v);
+      if(!S.n&&R.pptx.countLib)S.n=R.pptx.countLib;
+      if(!S.n){S.n=1;VB.err('PPTX 장 수를 알 수 없어 첫 장만 보입니다');}
+      pageNo();
+    }
+    showMsg('');
+    while(g===S.gen&&S.viewer&&S.shown!==S.want){
+      var k=S.want,t0=now();
+      if(typeof S.viewer.renderSlide==='function')await S.viewer.renderSlide(k);
+      else await S.viewer.goToSlide(k);
+      if(g!==S.gen)break;
+      S.shown=k;R.pptx.navMs.push(ms(t0));if(R.pptx.navMs.length>300)R.pptx.navMs.shift();
+    }
+  }catch(e){
+    if(g===S.gen){showMsg('PPTX를 그리지 못했습니다: '+(e&&e.message||e)+' (PDF로 저장해서 올려 주세요)');VB.err('PPTX: '+(e&&e.message||e));}
+  }
+  S.busy=false;
+}
+/* --- HTML: 격리 틀(sandbox=allow-scripts, 같은 출처 권한 없음) + 넘김 키 전달용 작은 스크립트 --- */
+function bridgeFn(){
+  var syn=false;
+  /* 격리 틀에서는 브라우저 저장소가 막혀 자료 스크립트가 멈춤 → 메모리 저장소로 대신 */
+  function mem(){var d={};return {getItem:function(k){k=String(k);return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null;},setItem:function(k,v){d[String(k)]=String(v);},removeItem:function(k){delete d[String(k)];},clear:function(){d={};},key:function(i){return Object.keys(d)[i]||null;},get length(){return Object.keys(d).length;}};}
+  ['localStorage','sessionStorage'].forEach(function(n){var ok=true;try{var t=window[n];t.getItem('x');}catch(x){ok=false;}if(!ok){try{Object.defineProperty(window,n,{value:mem(),configurable:true});}catch(x){}}});
+  try{document.cookie;}catch(x){var ck='';try{Object.defineProperty(document,'cookie',{get:function(){return ck;},set:function(v){ck=String(v).split(';')[0];},configurable:true});}catch(y){}}
+  try{var H=window.history;['pushState','replaceState'].forEach(function(n){var f=H[n];H[n]=function(){try{return f.apply(H,arguments);}catch(x){}};});}catch(x){}
+  function post(o){try{window.parent.postMessage(o,'*');}catch(x){}}
+  post({vb:'ready'});
+  /* 링크: 문서 안(#) 링크는 그 자리로 스크롤, 인터넷 링크는 새 탭, 다른 파일 링크는 막음 (틀 안 화면이 바뀌어 발표가 끊기지 않게) */
+  document.addEventListener('click',function(e){
+    var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a||e.defaultPrevented)return;
+    var h=a.getAttribute('href')||'';
+    if(h.charAt(0)==='#'){
+      e.preventDefault();var id='';try{id=decodeURIComponent(h.slice(1));}catch(x){id=h.slice(1);}
+      var t=id?(document.getElementById(id)||document.getElementsByName(id)[0]):null;
+      if(t)t.scrollIntoView({behavior:'smooth',block:'start'});else if(!id)window.scrollTo(0,0);
+      return;
+    }
+    if(/^javascript:/i.test(h))return;
+    e.preventDefault();
+    if(/^(https?:|mailto:|tel:)/i.test(h)){try{window.open(a.href,'_blank','noopener');}catch(x){}post({vb:'link',url:h.slice(0,80)});return;}
+    post({vb:'err',msg:'자료 안의 다른 파일 링크는 열 수 없습니다: '+h.slice(0,60)});
+  },false);
+  document.addEventListener('submit',function(e){e.preventDefault();},true);
+  window.addEventListener('error',function(e){post({vb:'err',msg:String(e.message||'오류').slice(0,200)});});
+  window.addEventListener('unhandledrejection',function(e){var r=e.reason;post({vb:'err',msg:String(r&&r.message?r.message:r).slice(0,200)});});
+  window.addEventListener('load',function(){setTimeout(function(){var b=document.body;post({vb:'stat',chars:b?(b.innerText||'').replace(/\s+/g,'').length:0,imgs:document.images.length,canvas:document.getElementsByTagName('canvas').length});},1500);});
+  function fire(type,k,kc,tg){
+    var ev;
+    try{ev=new KeyboardEvent(type,{key:k,code:k,bubbles:true,cancelable:true});}catch(x){return true;}
+    try{Object.defineProperty(ev,'keyCode',{get:function(){return kc;}});Object.defineProperty(ev,'which',{get:function(){return kc;}});}catch(x){}
+    syn=true;var r=true;try{r=tg.dispatchEvent(ev);}finally{syn=false;}
+    return r;
+  }
+  window.addEventListener('message',function(e){
+    var d=e.data;if(!d||d.vb!=='nav'||e.source!==window.parent)return;
+    var nx=d.dir>0,k=nx?'ArrowRight':'ArrowLeft',kc=nx?39:37;
+    var a=document.activeElement,tg=(a&&a!==document.documentElement)?a:(document.body||document);
+    var ok=fire('keydown',k,kc,tg);fire('keyup',k,kc,tg);
+    if(ok)window.scrollBy(0,(nx?1:-1)*Math.round(window.innerHeight*0.85));
+  });
+  window.addEventListener('keydown',function(e){
+    if(syn)return;
+    var t=e.target,tn=t&&t.tagName;
+    if(tn==='INPUT'||tn==='TEXTAREA'||tn==='SELECT'||(t&&t.isContentEditable))return;
+    try{window.parent.postMessage({vb:'key',key:e.key,code:e.code},'*');}catch(x){}
+  },true);
+}
+function inject(html){
+  var SC='scr'+'ipt',tag='<'+SC+'>('+bridgeFn.toString()+')();</'+SC+'>';
+  var m=/<head(\s[^>]*)?>/i.exec(html)||/<html(\s[^>]*)?>/i.exec(html);
+  if(m){var p=m.index+m[0].length;return html.slice(0,p)+tag+html.slice(p);}
+  return tag+html;
+}
+function sampleHtml(){
+  var SC='scr'+'ipt';
+  return ['<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>예시 HTML 발표자료 (가명)</title><style>',
+'html,body{margin:0;height:100%;overflow:hidden;background:#1d2433;font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif}',
+'.s{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:opacity .45s}',
+'.s.on{opacity:1;visibility:visible}',
+'.c{position:relative;width:min(94vw,167vh);height:min(52.9vw,94vh);box-sizing:border-box;padding:4% 6%;background:#fff;border-radius:8px;color:#1c2330;display:flex;flex-direction:column;justify-content:center;overflow:hidden}',
+'.c:before{content:"";position:absolute;left:0;top:0;bottom:0;width:2.2%;background:#1d4ed8}',
+'h1{margin:0 0 .5em;font-size:min(4.4vw,7.8vh);color:#1d4ed8;line-height:1.25}',
+'p,li{font-size:min(2.6vw,4.6vh);margin:.25em 0;line-height:1.4}',
+'.sub{color:#5b6577}',
+'.bars{display:flex;align-items:flex-end;gap:4%;height:34%;margin-top:3%}',
+'.bar{flex:1;background:#4f9cf7;border-radius:6px 6px 0 0;color:#fff;font-weight:700;display:flex;justify-content:center;padding-top:1%;font-size:min(2.2vw,4vh)}',
+'.lab{display:flex;gap:4%}.lab div{flex:1;text-align:center;font-size:min(1.8vw,3.2vh);color:#5b6577}',
+'#pg{position:fixed;right:12px;bottom:8px;color:#9aa3b8;font-size:14px}',
+'</style></head><body>',
+'<div class="s on"><div class="c"><h1>A시 지속가능발전 브리핑</h1><p class="sub">Sustainable Development Briefing</p><p class="sub">해외 방문기관 설명회 (예시 · 가명)</p></div></div>',
+'<div class="s"><div class="c"><h1>도시 물순환 관리 (Urban Water Circulation)</h1><ul><li>빗물 저류시설(Rainwater Detention) 확대</li><li>투수성 포장(Permeable Pavement) 시범 12곳</li><li>시범사업 예산 3억 원, 국비 40%</li></ul>',
+'<div class="bars"><div class="bar" style="height:100%">12</div><div class="bar" style="height:50%;background:#e9a83b">6</div><div class="bar" style="height:40%;background:#6fcf97">40%</div></div>',
+'<div class="lab"><div>시범 구역</div><div>올해 착수</div><div>국비 비율</div></div></div></div>',
+'<div class="s"><div class="c"><h1>다음 단계 (Next Steps)</h1><ul><li>2027년 시범 구역 확대</li><li>국제 협력: Sister City Network 참여</li><li>Climate Adaptation Fund 지원 신청</li></ul><p class="sub">HTML 자료는 화면 전환(서서히 바뀜)도 그대로 보입니다.</p></div></div>',
+'<div id="pg">1 / 3</div>',
+'<'+SC+'>',
+'var S=document.querySelectorAll(".s"),i=0,pg=document.getElementById("pg");',
+'function go(k){if(k<0||k>=S.length)return;S[i].className="s";i=k;S[i].className="s on";pg.textContent=(i+1)+" / "+S.length;}',
+'document.addEventListener("keydown",function(e){var k=e.key,c=e.keyCode;',
+' if(k==="ArrowRight"||k==="PageDown"||k===" "||c===39||c===34){go(i+1);e.preventDefault();}',
+' else if(k==="ArrowLeft"||k==="PageUp"||c===37||c===33){go(i-1);e.preventDefault();}});',
+'document.addEventListener("click",function(e){go(e.clientX<window.innerWidth/3?i-1:i+1);});',
+'</'+SC+'></body></html>'].join('\n');
+}
+function loadHtml(text,label){
+  S.type='html';S.html=text;S.n=0;S.frameReady=false;
+  var tx='';
+  var ttl='';
+  try{var hd=new DOMParser().parseFromString(text,'text/html'),h1=hd.querySelector('h1');ttl=((hd.title||'')||(h1&&h1.textContent)||'').replace(/\s+/g,' ').trim();tx=VB.htmlText(hd);}catch(e){}
+  S.texts=[tx];S.titles=[ttl.length<=60?ttl:''];
+  var ext=(text.match(/\b(?:src|href)\s*=\s*["']?https?:/gi)||[]).length;
+  var rel=(text.match(/\b(?:src|href)\s*=\s*["']?(?!https?:|data:|blob:|#|javascript:|mailto:|tel:)[^"'\s>]+/gi)||[]).length;
+  R.html={source:label,sizeKB:Math.round(text.length/1024),textChars:tx.length,extRefs:ext,relRefs:rel,loadMs:null,bridgeKeys:0};
+  if(!R.file)R.file={type:'html',sizeKB:R.html.sizeKB};
+  frame.removeAttribute('srcdoc');
+  prog(1);
+  meta('준비 완료: HTML('+label+') · '+R.html.sizeKB+'KB'
+    +(rel?' · ⚠ 같은 폴더의 그림·파일 '+rel+'개는 안 보일 수 있음(그림이 안에 들어간 한 파일 HTML 권장)':'')
+    +(ext?' · 인터넷 자료 '+ext+'개(발표 중 인터넷 연결 필요)':'')
+    +' · 화면은 [발표 시작] 때 엽니다');
+  show(0);
+  VB.log('HTML 준비('+label+')');
+  if(VB.onTexts)VB.onTexts();
+}
+/* 틀이 우리 자료를 띄웠는지 '준비됨' 신호로 확인. 신호 없이 다른 페이지가 열리면(링크·양식 등) 자료로 되돌림 */
+var gotReady=false,restores=0;
+VB.frameReadyMsg=function(){gotReady=true;};
+function htmlStart(force){
+  if(S.type!=='html'||(S.frameReady&&!force))return;
+  var t0=now();gotReady=false;S.frameReady=false;
+  frame.onload=function(){
+    setTimeout(function(){
+      if(S.type!=='html')return;
+      if(gotReady){gotReady=false;S.frameReady=true;if(R.html&&R.html.loadMs==null)R.html.loadMs=ms(t0);if(VB.inPresent){try{frame.focus();}catch(e){}}return;}
+      S.frameReady=false;
+      if(restores<5){restores++;if(R.html)R.html.restores=restores;VB.log('틀 안 화면이 다른 페이지로 바뀌어 자료로 되돌림');frame.srcdoc=inject(S.html);}
+      else VB.err('HTML 자료 화면을 되돌리지 못했습니다. 준비 화면에서 다시 올려 주세요');
+    },300);
+  };
+  frame.srcdoc=inject(S.html);
+}
+/* --- PPTX: 높이까지 맞추기(렌더러는 폭에만 맞춤) --- */
+function pptxFit(){
+  var v=S.viewer;if(!v||typeof v.setZoom!=='function')return;
+  var sw=v.slideWidth,sh=v.slideHeight,bw=pbox.clientWidth,bh=pbox.clientHeight;
+  if(!sw||!sh||!bw||!bh)return;
+  var z=Math.max(10,Math.min(100,Math.floor(100*bh*sw/(sh*bw))));
+  if(z!==S.zoom){S.zoom=z;var p=v.setZoom(z);if(p&&p.then)p.then(center,function(){});else center();}else center();
+}
+function center(){var inn=$('pptxInner');if(!inn||!S.viewer)return;var w=S.viewer.slideWidth*(pbox.clientWidth/S.viewer.slideWidth)*(S.zoom||100)/100;inn.style.paddingLeft=Math.max(0,Math.round((pbox.clientWidth-w)/2))+'px';}
+VB.nav=function(d){
+  if(S.type==='html'){
+    if(frame.contentWindow){try{frame.contentWindow.postMessage({vb:'nav',dir:d},'*');}catch(e){}}
+    return;
+  }
+  if(!S.n)return;
+  var k=Math.max(0,Math.min(S.n-1,S.cur+d));
+  if(k===S.cur)return;
+  S.cur=k;show(k);
+};
+VB.navTo=function(i){if(S.type==='html'||!S.n)return;var k=Math.max(0,Math.min(S.n-1,i));if(k===S.cur)return;S.cur=k;show(k);};
+VB.goPage=function(i){if(!S.n)return;S.cur=Math.max(0,Math.min(S.n-1,i));show(S.cur);};
+VB.onLayout=function(){if(S.type==='pptx'&&VB.inPresent)pptxFit();};
+VB.onPresent=function(){
+  if(S.type==='html'){restores=0;htmlStart();}
+  show(S.cur);
+  if(S.type==='pptx')setTimeout(pptxFit,50);
+};
+var rzT=null;
+window.addEventListener('resize',function(){clearTimeout(rzT);rzT=setTimeout(function(){if(S.type==='pptx'&&VB.inPresent)pptxFit();},150);});
+/* 원본 보기 쪽 마무리: pptxGo 안에서 처음 열 때 높이 맞추기 */
+var _pptxGo=pptxGo;
+pptxGo=async function(i){await _pptxGo(i);pptxFit();};
+/* --- 올리기: 파일 선택·끌어다 놓기·예시 HTML --- */
+$('file').addEventListener('change',function(){var f=this.files&&this.files[0];this.value='';if(f)loadFile(f);});
+var dr=$('drop');
+['dragenter','dragover'].forEach(function(n){dr.addEventListener(n,function(e){e.preventDefault();dr.classList.add('drag');});});
+['dragleave','drop'].forEach(function(n){dr.addEventListener(n,function(e){e.preventDefault();dr.classList.remove('drag');});});
+dr.addEventListener('drop',function(e){var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];if(f)loadFile(f);});
+$('btnSampleHtml').addEventListener('click',function(){reset();R.file={type:'html',sizeKB:0,sample:true};var h=sampleHtml();S.name='예시 HTML 발표자료';loadHtml(h,'예시');if(VB.onDeck)try{VB.onDeck(new Blob([h],{type:'text/html'}),'html','예시 HTML 발표자료.html');}catch(e){}});
+VB.loadFile=loadFile;VB.loadHtml=loadHtml;VB.resetDeck=reset;
+/* HTML 글자: 표 칸·문단 경계에 줄바꿈을 넣어 낱말이 붙지 않게 */
+function htmlText(d){
+  Array.prototype.forEach.call(d.querySelectorAll('script,style,noscript,template'),function(x){x.parentNode.removeChild(x);});
+  Array.prototype.forEach.call(d.querySelectorAll('br,p,div,li,td,th,tr,h1,h2,h3,h4,h5,h6,section,article,header,footer,dt,dd,caption,figcaption,blockquote,pre,option,button,label'),function(x){x.appendChild(d.createTextNode('\n'));});
+  return ((d.body&&d.body.textContent)||'').replace(/[ \t\u00a0]+/g,' ').replace(/\s*\n\s*/g,'\n').trim();
+}
+VB.htmlText=htmlText;
+/* 참고자료 글자만 뽑기 (화면에는 안 띄움): PDF·PPTX·HTML·TXT·MD·CSV */
+VB.extractText=async function(f){
+  var nm=f.name||'',ext=nm.indexOf('.')>=0?nm.split('.').pop().toLowerCase():'';
+  if(ext==='pdf'){
+    var L=await pdfLib(),doc=await pdfOpen(L,await f.arrayBuffer()),out=[];
+    try{for(var i=1;i<=doc.numPages;i++){var pg=await doc.getPage(i),tc=await pg.getTextContent(),t='';
+      tc.items.forEach(function(it){t+=(it.str||'');t+=it.hasEOL?'\n':' ';});out.push(t);try{pg.cleanup();}catch(e){}}}
+    finally{try{doc.destroy();}catch(e){}}
+    return out.join('\n');
+  }
+  if(ext==='pptx'){var sc=await pptxScan(await f.arrayBuffer());return sc.texts.join('\n');}
+  if(ext==='html'||ext==='htm'){var h=await readText(f);return htmlText(new DOMParser().parseFromString(h,'text/html'));}
+  if(['txt','md','csv','tsv'].indexOf(ext)>=0)return await readText(f);
+  throw new Error('.'+ext+' 형식은 글자를 읽을 수 없습니다. PDF·PPTX·HTML·TXT로 올려 주세요');
+};
+show(0);
+VB.log('S2 원본 보기 준비됨');
+}catch(e){VB.err('S2 '+e.message);}})();
+</script>
+<script>
+/* ===== S5 자료 용어: 발표자료·참고자료 글자 → 기준 용어·한영 짝 → 잘못 들린 말 바로잡기·번역 고정·강조 (모두 기기 안에서) =====
+   index.html의 교정 엔진(자모 편집거리·조사 맞춤·지명 로마자)을 옮기고, 손 용어집 대신 자료 속 괄호 짝을 씀 */
+(function(){try{
+var $=VB.$,el=VB.el,R=VB.R;
 const CHO='ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ', JUNG='ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ', JONG=' ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ';
 function jamo(s){ let o=''; for(const ch of s){ const c=ch.charCodeAt(0)-0xAC00; if(c>=0&&c<11172){ o+=CHO[Math.floor(c/588)]+JUNG[Math.floor((c%588)/28)]+(c%28?JONG[c%28]:''); } else o+=ch.toLowerCase(); } return o; }
 function lev(a,b,max){
@@ -443,34 +917,92 @@ function lev(a,b,max){
 }
 const PARTICLES=['에서는','에서도','으로는','으로도','에게서','이라는','까지는','부터는','에서의','에서','에게','으로','까지','부터','처럼','보다','이나','이며','라는','에는','에도','과는','와는','은','는','이','가','을','를','의','에','로','와','과','도','만'].sort((a,b)=>b.length-a.length);
 function hasBatchim(ch){ const c=(ch||'').charCodeAt(0)-0xAC00; return c>=0&&c<11172&&c%28!==0; }
-function fixP(form,p){ // 바뀐 낱말에 맞게 조사 고치기 (을/를, 은/는, 이/가, 과/와)
+function fixP(form,p){
   if(!p) return p; const b=hasBatchim(form[form.length-1]);
   const m={'을':['을','를'],'를':['을','를'],'은':['은','는'],'는':['은','는'],'이':['이','가'],'가':['이','가'],'과':['과','와'],'와':['과','와']}[p];
   return m ? (b?m[0]:m[1]) : p;
 }
-function stripP(w){ for(const p of PARTICLES) if(w.length>p.length+1 && w.endsWith(p)) return [w.slice(0,-p.length),p]; return [w,'']; }
+const PROV=new Set(['강원도','경기도','충청도','전라도','경상도','제주도','충북도','충남도','전북도','전남도','경북도','경남도']);
+function stripP(w){ if(/자치도$/.test(w)||PROV.has(w)) return [w,'']; for(const p of PARTICLES) if(w.length>p.length+1 && w.endsWith(p)) return [w.slice(0,-p.length),p]; return [w,'']; }
 const VERBISH=/(다|요|고|며|서|게|지|는|던|면|까|죠|니|된|될|한|할|했|함|됨|겠|습|었|았)$/;
 const STOP=new Set('그리고 그러나 하지만 또한 이번 이후 이전 우리 저희 여러분 정도 경우 이상 이하 관련 대한 위한 통해 따라 등의 있음 없음 사항 내용 부분 현재 향후 추진 계획 기준 대상 방안 필요 가능 진행'.split(' '));
-// 자동 교정 대상: 기관·지역·사업 이름처럼 끝나는 말 (일반 낱말은 건드리지 않음)
 const PROPER=/(시|청|도|군|구|읍|면|동|부|처|원|단|팀|과|국|실|센터|공사|공단|재단|위원회|협회|제도|사업|정책|계획|구역|지구|단지|플랫폼|시스템)$/;
 function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
-function looseRe(from){
-  const body=/[가-힣]/.test(from) ? [...from.replace(/\s+/g,'')].map(escRe).join('\\s*') : escRe(from).replace(/\\?\s+/g,'\\s+');
-  return new RegExp(/^[A-Za-z0-9]/.test(from)?'\\b'+body+'\\b':body, /[A-Za-z]/.test(from)?'gi':'g');
-}
 const isKo=s=>/[가-힣]/.test(s);
+VB.jamo=jamo; VB.lev=lev; VB.stripP=stripP; VB.VERBISH=VERBISH; VB.STOP=STOP;
+const RR_I=['g','kk','n','d','tt','r','m','b','pp','s','ss','','j','jj','ch','k','t','p','h'];
+const RR_V=['a','ae','ya','yae','eo','e','yeo','ye','o','wa','wae','oe','yo','u','wo','we','wi','yu','eu','ui','i'];
+const RR_F=['','k','k','k','n','n','n','t','l','k','m','l','l','l','p','l','m','p','p','t','t','ng','t','t','k','t','p','t'];
+const RR_LINK={1:'g',4:'n',8:'r',16:'m',17:'b',19:'s',21:'ng',22:'j'};
+function romanize(w){
+  const sy=[...w].map(ch=>{ const c=ch.charCodeAt(0)-0xAC00; return [Math.floor(c/588),Math.floor((c%588)/28),c%28]; });
+  let o='';
+  sy.forEach(([i,v,f],k)=>{
+    let ini=RR_I[i]; if(k===0 && i===5) ini='r';
+    const prev=sy[k-1];
+    if(prev){ const pf=prev[2];
+      if(i===5 && (pf===21||pf===16)) ini='n';
+      if(i===5 && (pf===4||pf===8)) ini='l';
+      if(i===11 && RR_LINK[pf] && pf!==21) ini='';
+    }
+    const next=sy[k+1]; let fin=RR_F[f];
+    if(next && next[0]===11 && RR_LINK[f] && f!==21) fin=RR_LINK[f];
+    if(next && f===1 && (next[0]===2||next[0]===6)) fin='ng';
+    if(next && f===4 && next[0]===5) fin='l';
+    o+=ini+RR_V[v]+fin;
+  });
+  return o.charAt(0).toUpperCase()+o.slice(1);
+}
+const PLACE_SUF={'특별자치도':'Special Self-Governing Province','특별자치시':'Special Self-Governing City','광역시':'Metropolitan City','특별시':'Special City','시청':'City Hall','시의회':'City Council','군청':'County Office','시':'City','군':'County','도':'Province','구':'District'};
+const KO_P='(?:은|는|이|가|을|를|의|에|와|과|도|로|으로|에서|부터|까지|만|에게|하고)';
+function koWordRe(term){ return new RegExp('(^|[^가-힣])('+[...term.replace(/\s+/g,'')].map(escRe).join('\\s*')+')(?=$|[^가-힣]|'+KO_P+'(?:$|[^가-힣]))','g'); }
+const EN_STOP=new Set('a an the and or of for to in on at by with from as is are was were be been this that these those it its we our you your they their he she his her i my me not no yes so if but than then there here what which who how why when where all any can will would should could may might must do does did have has had also more most very into over under about after before between'.split(' '));
+const EN_LINK=new Set(['of','and','for','the','de','&']);
+function enKey(s){ return s.toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim(); }
+const isAcr=s=>/^[A-Z][A-Z0-9]{1,6}s?$/.test(s);
 
-const Terms = {
-  sources:[],             // [{name, text}]
-  vocab:new Map(),        // 띄어쓰기 없는 키 → {form, n, j}
-  fixes:[], pairs:[],
-  load(){
-    try{ const t=JSON.parse(localStorage.getItem('pcap.terms.v1')||'null'); if(t&&t.sources) this.sources=t.sources; }catch(_){}
-    this.rebuild();
-  },
-  save(){ try{ localStorage.setItem('pcap.terms.v1', JSON.stringify({sources:this.sources})); }catch(e){ console.warn('참고자료 저장 실패(용량)',e); toast?.('참고자료가 너무 커서 일부만 저장됩니다',3000); } },
-  setSource(name,text){ text=(text||'').slice(0,400000); this.sources=this.sources.filter(x=>x.name!==name); this.sources.push({name,text}); this.rebuild(); this.save(); },
-  removeSource(name){ this.sources=this.sources.filter(x=>x.name!==name); this.rebuild(); this.save(); },
+/* 자료 속 '한국어(English)' · 'English(한국어)' 짝 찾기 */
+function findPairs(text,add){
+  const re=/[(（]\s*([^()（）\n]{1,60}?)\s*[)）]/g; let m;
+  while((m=re.exec(text))){
+    const inner=m[1].trim(), before=text.slice(Math.max(0,m.index-60),m.index).replace(/\s+$/,'');
+    if(/^[A-Za-z][A-Za-z0-9&.'’\- ]*$/.test(inner) && /[가-힣]$/.test(before)){
+      const en=inner.replace(/[.\s]+$/,''), ew=en.split(/\s+/).length;
+      if(!isAcr(en) && !/^[A-Z]/.test(en) && ew<2) continue;            // 'reduced' 같은 낱말 하나는 짝이 아님
+      const toks=before.split(/\s+/), got=[]; let len=0;
+      for(let k=toks.length-1;k>=0 && got.length<Math.min(3,Math.max(1,ew));k--){
+        const t=toks[k]; if(!/^[가-힣·]+$/.test(t)) break;
+        if(got.length && (stripP(t)[1]||STOP.has(t)||VERBISH.test(t))) break;
+        if(got.length && len>=ew*2) break;
+        got.unshift(t); len+=t.length;
+      }
+      const ko=got.join(' ');
+      if(ko.replace(/\s/g,'').length<2 || (VERBISH.test(ko) && !PROPER.test(ko))) continue;
+      add(ko,en);
+    }else if(/^[가-힣][가-힣0-9·\s]*$/.test(inner) && /[A-Za-z0-9]$/.test(before)){
+      const toks=before.split(/\s+/), got=[];
+      for(let k=toks.length-1;k>=0 && got.length<7;k--){
+        const t=toks[k].replace(/^[^A-Za-z0-9]+/,'');
+        if(!/^[A-Za-z][A-Za-z0-9&.'’\-]*$/.test(t)) break;
+        if(!(/^[A-Z]/.test(t)||EN_LINK.has(t.toLowerCase()))) break;
+        got.unshift(t);
+      }
+      while(got.length && EN_LINK.has(got[0].toLowerCase())) got.shift();
+      const en=got.join(' ');
+      const kin=inner.replace(/\s+/g,'');
+      if(en.length<2 || (got.length===1 && !isAcr(en) && en.length<4)) continue;
+      if((got.length===1 && kin.length<3) || STOP.has(kin) || (VERBISH.test(kin) && !PROPER.test(kin))) continue;   // QR(자율) 같은 덧붙임 말은 짝이 아님
+      add(inner.replace(/\s+/g,' '),en);
+    }
+  }
+}
+
+const Terms={
+  sources:[], vocab:new Map(), vocabEn:new Map(), pairs:[], autoPairs:[],
+  load(){ try{ const t=JSON.parse(localStorage.getItem('pcap.refs.v2')||localStorage.getItem('pcap.terms.v1')||'null'); if(t&&t.sources) this.sources=t.sources; }catch(_){} },   // v1(이전 index.html) 참고자료도 이어받음
+  save(){ try{ localStorage.setItem('pcap.refs.v2',JSON.stringify({sources:this.sources})); }catch(e){ VB.log('참고자료 저장 실패(용량)'); } },
+  setSource(name,text){ text=(text||'').slice(0,400000); this.sources=this.sources.filter(x=>x.name!==name); this.sources.push({name,text}); this.save(); this.rebuild(); },
+  removeSource(name){ this.sources=this.sources.filter(x=>x.name!==name); this.save(); this.rebuild(); },
   inc(key,form,w=1){ const v=this.vocab.get(key); if(v) v.n+=w; else this.vocab.set(key,{form,n:w}); },
   addText(text,w=1){
     let prev=null;
@@ -483,40 +1015,64 @@ const Terms = {
       prev = p ? null : core;
     }
   },
-  parseGloss(txt){
-    this.fixes=[]; this.pairs=[];
-    for(let l of (txt||'').split('\n')){
-      l=l.trim(); if(!l||l.startsWith('#')) continue;
-      if(/→|->/.test(l)){ const [a,b]=l.split(/→|->/).map(x=>x.trim()); if(a&&b) this.fixes.push([a,b]); }
-      else if(l.includes('=')){ const i=l.indexOf('='); const a=l.slice(0,i).trim(), b=l.slice(i+1).trim(); if(a&&b) this.pairs.push(isKo(a)?[a,b]:[b,a]); }
+  addTextEn(text){
+    const lowerSeen=this._lowerSeen;
+    for(const line of text.split(/\n|[.!?:;•·,()\[\]{}|/–—"“”（）]+/)){
+      const toks=line.match(/[A-Za-z][A-Za-z0-9&'’\-]*/g)||[]; let run=[];
+      const flush=()=>{
+        while(run.length && EN_LINK.has(run[run.length-1].toLowerCase())) run.pop();
+        const caps=run.filter(w=>!EN_LINK.has(w.toLowerCase()));
+        if(caps.length>=2){ for(let n=run.length;n>=2;n--){ const ph=run.slice(0,n); if(EN_LINK.has(ph[n-1].toLowerCase())) continue; this.incEn(ph.join(' '),'phrase'); } }
+        run=[];
+      };
+      toks.forEach((w,i)=>{
+        const acr=/^[A-Z]{2,6}s?$/.test(w), cap=/^[A-Z][a-z]/.test(w);
+        if(acr) this.incEn(w,'acr');
+        if(!acr && !cap && /^[a-z]/.test(w)) lowerSeen.add(w.toLowerCase());
+        if(cap && i>0 && w.length>=4 && !EN_STOP.has(w.toLowerCase())) this.incEn(w,'word');
+        if(cap||acr) run.push(w); else if(run.length && EN_LINK.has(w.toLowerCase())) run.push(w); else flush();
+      });
+      flush();
     }
   },
+  incEn(form,kind,w=1){ const k=enKey(form); if(!k) return; const v=this.vocabEn.get(k); if(v) v.n+=w; else this.vocabEn.set(k,{form,n:w,kind}); return this.vocabEn.get(k); },
+  texts(){ const t=this.sources.map(x=>x.text); const m=(VB.S&&VB.S.texts||[]).join('\n'); if(m.trim()) t.unshift(m); return t; },
   rebuild(){
-    this.vocab=new Map();
-    for(const s of this.sources) this.addText(s.text);
-    if(S.slidesText) this.addText(S.slidesText);
-    this.parseGloss(S.glossary);
-    for(const [k,v] of this.vocab){
-      if(k.length<3){ this.vocab.delete(k); continue; }
-      // 참고자료에서 2번 이상 나온, 4글자 이상 낱말이거나 기관·사업 이름 꼴인 낱말만 '소리 비슷하면 고치기' 대상
-      v.fz = !v.form.includes(' ') && v.n>=2 && (k.length>=4 || PROPER.test(k));
+    this.vocab=new Map(); this.vocabEn=new Map(); this._lowerSeen=new Set();
+    const pm=new Map();
+    const addPair=(ko,en)=>{ const k=ko.replace(/\s+/g,''); const v=pm.get(k); if(v){ if(v.en===en) v.n++; else (v.alt[en]=(v.alt[en]||0)+1); } else pm.set(k,{ko,en,n:1,alt:{}}); };
+    for(const t of this.texts()){ this.addText(t); this.addTextEn(t); findPairs(t,addPair); }
+    for(const [k,v] of this.vocabEn){
+      v.fz = v.kind==='acr' ? !EN_STOP.has(k) && k.length>=2
+           : v.kind==='phrase' ? true
+           : (v.n>=2 && !this._lowerSeen.has(k) && k.length>=5);
     }
-    const glo=t=>{ const k=t.replace(/\s+/g,''); this.inc(k,t,5); this.vocab.get(k).fz=true; };   // 용어집 낱말은 항상 교정 대상
-    for(const [,to] of this.fixes) if(isKo(to)) glo(to);
-    for(const [ko] of this.pairs) glo(ko);
-    for(const [k,v] of this.vocab){ if(k.length<3){ this.vocab.delete(k); continue; } v.j=jamo(k); }
-    if(typeof renderTerms==='function') renderTerms();
+    const inPhrase=new Set(); for(const v of this.vocabEn.values()) if(v.kind==='phrase') enKey(v.form).split(' ').forEach(w=>inPhrase.add(w));
+    for(const [k,v] of this.vocabEn) if(v.kind==='word' && inPhrase.has(k)) v.fz=false;
+    for(const [k,v] of this.vocab){ v.fz = !v.form.includes(' ') && v.n>=2 && (k.length>=4 || PROPER.test(k)); }
+    // 자료 속 짝: 가장 많이 나온 영어 표기 하나로. 짝의 양쪽 말은 항상 바로잡기 대상
+    this.pairs=[...pm.values()].map(v=>{ let en=v.en,n=v.n; for(const a in v.alt) if(v.alt[a]>n){ en=a; n=v.alt[a]; } return [v.ko,en,v.n]; });
+    for(const [ko,en] of this.pairs){
+      const k=ko.replace(/\s+/g,''); this.inc(k,ko,5); this.vocab.get(k).fz=true;
+      const e=this.incEn(en,isAcr(en)?'acr':(en.includes(' ')?'phrase':'word'),5); if(e) e.fz=true;
+    }
+    for(const [k,v] of this.vocab){ if(k.length<3 && !this.pairs.some(p=>p[0].replace(/\s+/g,'')===k)){ this.vocab.delete(k); continue; } v.j=jamo(k); }
+    this.autoPairs=[]; const stems=new Set(), paired=new Set(this.pairs.map(p=>p[0].replace(/\s+/g,'')));
+    for(const [k,v] of this.vocab){
+      const m=k.match(/^([가-힣]{2})(특별자치도|특별자치시|광역시|특별시|시청|시의회|군청|시|군|도|구)$/); if(!m || paired.has(k) || v.n<(m[2].length>=3?1:2)) continue;
+      this.autoPairs.push([k, romanize(m[1])+' '+PLACE_SUF[m[2]]]); stems.add(m[1]);
+    }
+    for(const st of stems) if(!paired.has(st)) this.autoPairs.push([st, romanize(st)]);
+    this._list=null; render();
   },
-  quick(text){ let s=text; for(const [a,b] of this.fixes) s=s.replace(looseRe(a),b); return s; },
-  // 소리가 비슷한 용어 찾기 (자모 단위 편집거리)
   nearest(core){
     const j=jamo(core), max=Math.floor(j.length*0.28); if(max<1) return null;
     let best=null, bd=99;
     for(const [k,v] of this.vocab){
       if(!v.fz || v.j[0]!==j[0] || Math.abs(v.j.length-j.length)>max) continue;
-      if(k.includes(core)||core.includes(k)) continue;                                   // 더 긴/짧은 같은 용어는 그대로 둠
-      const fw=v.form.split(' ')[0]; if(v.form.includes(' ') && core.startsWith(fw)) continue;  // 앞 낱말은 맞고 뒤 낱말만 다르면 다른 말(원주시민 여러분)
-      if(k.length<=4 && k.length===core.length && k.slice(0,-1)===core.slice(0,-1)) continue;  // 짧은 낱말의 끝 글자만 다름(시민↔시청)은 다른 낱말
+      if(k.includes(core)||core.includes(k)) continue;
+      const fw=v.form.split(' ')[0]; if(v.form.includes(' ') && core.startsWith(fw) && !this.pairs.some(p=>p[0]===v.form)) continue;
+      if(k.length<=4 && k.length===core.length && k.slice(0,-1)===core.slice(0,-1) && (k.length<=3 || lev(jamo(k.slice(-1)),jamo(core.slice(-1)),2)>1)) continue;   // 짧은 낱말 끝 글자만 다름(시민↔시청)은 다른 말. 4글자는 자모 하나 차이(중닙↔중립)만 고침
       const d=lev(j,v.j,max); if(d>max) continue;
       if(d<bd || (d===bd && v.n>best.n)){ bd=d; best=v; }
     }
@@ -527,110 +1083,224 @@ const Terms = {
     while(i<toks.length){
       let hit=null;
       for(let n=Math.min(3,toks.length-i); n>=1 && !hit; n--){
-        const joined=toks.slice(i,i+n).join('');
+        const span=toks.slice(i,i+n), tail=(span[n-1].match(/[.,?!;:]+$/)||[''])[0];
+        const joined=span.join('').replace(/[.,?!;:]+$/,'');
         if(!/^[가-힣]+$/.test(joined)) continue;
         const [core,p]=stripP(joined);
         if(core.length<3||core.length>12) continue;
         const ex=this.vocab.get(core);
-        if(ex){ if(n>1) hit=[ex.form+fixP(ex.form,p),n]; continue; }
+        if(ex){ if(n>1) hit=[ex.form+fixP(ex.form,p)+tail,n]; continue; }
         if(VERBISH.test(core)) continue;
-        if(n>1){ // 여러 낱말을 붙여 비교할 때: 중간 낱말에 조사가 있거나, 첫 낱말이 이미 아는 낱말이면 건너뜀 (노트북을 켜 ≠ 노트북용)
+        if(n>1){
           const mid=toks.slice(i,i+n-1);
           if(mid.some(w=>stripP(w)[1]) || this.vocab.has(stripP(toks[i])[0])) continue;
         }
-        const b=this.nearest(core); if(b) hit=[b.form+fixP(b.form,p),n];
+        const b=this.nearest(core); if(b) hit=[b.form+fixP(b.form,p)+tail,n];
+      }
+      if(hit){ out.push(hit[0]); i+=hit[1]; } else { out.push(toks[i]); i++; }
+    }
+    return out.join(' ');
+  },
+  fuzzyEn(text){
+    let s=text.replace(/\b(?:[A-Za-z]\s){1,5}[A-Za-z]\b/g,m=>{ const k=m.replace(/\s/g,'').toLowerCase(); const v=this.vocabEn.get(k); return v&&v.kind==='acr'?v.form:m; });
+    const toks=s.split(/\s+/).filter(Boolean), out=[]; let i=0;
+    const cands=[...this.vocabEn.values()].filter(v=>v.fz);
+    while(i<toks.length){
+      let hit=null;
+      for(let n=Math.min(5,toks.length-i); n>=1 && !hit; n--){
+        const span=toks.slice(i,i+n), tail=(span[n-1].match(/[.,?!;:]+$/)||[''])[0];
+        const key=enKey(span.join(' ')); if(!key) continue;
+        const ex=this.vocabEn.get(key);
+        if(ex && ex.fz && (n>1 || ex.kind!=='word' || key.length>=5)){ hit=[ex.form+tail,n]; break; }
+        if(n===1 && key.length<6) continue;
+        if(EN_STOP.has(key.split(' ')[0])) continue;
+        let best=null, bd=99;
+        for(const v of cands){
+          if(v.kind==='acr') continue;
+          const vk=enKey(v.form); if(vk.split(' ').length!==n) continue;
+          const max=n===1?1:Math.floor(vk.length*0.2); if(Math.abs(vk.length-key.length)>max) continue;
+          const d=lev(key,vk,max); if(d>=1 && d<=max && d<bd){ bd=d; best=v; }
+        }
+        if(best) hit=[best.form+tail,n];
       }
       if(hit){ out.push(hit[0]); i+=hit[1]; } else { out.push(toks[i]); i++; }
     }
     return out.join(' ');
   },
   correct(text,lang){
-    let s=this.quick(text);
-    if(lang==='ko' && S.autoFix && this.vocab.size) s=this.fuzzy(s);
-    return s;
+    if(VB.opt&&VB.opt.autoFix===false) return text;
+    if(lang==='ko' && this.vocab.size) return this.fuzzy(text);
+    if(lang==='en' && this.vocabEn.size) return this.fuzzyEn(text);
+    return text;
   },
-  // 용어집의 '바른 말 = 영어'를 번역 전에 XA·XB… 로 바꿔 두었다가 번역 뒤 정해진 표기로 되돌림
+  /* 번역 전에 자료 속 용어를 XA·XB…로 바꿔 두었다가, 번역 뒤 자료의 표기로 되돌림 */
   protect(text,lang){
     const map=[]; let s=text;
-    const pairs=[...this.pairs].sort((a,b)=>(lang==='ko'?b[0].length-a[0].length:b[1].length-a[1].length));
-    for(const [ko,en] of pairs){
-      const from = lang==='ko'?ko:en, to = lang==='ko'?en:ko;
-      const re=looseRe(from); if(!re.test(s)) continue;
-      const ph='X'+String.fromCharCode(65+map.length); if(map.length>=20) break;
-      s=s.replace(looseRe(from),ph); map.push([ph,to]);
+    const put=(re,to,koRe)=>{ if(map.length>=20) return; re.lastIndex=0; if(!re.test(s)) return; re.lastIndex=0; const ph='X'+String.fromCharCode(65+map.length); s=koRe?s.replace(re,(m,a)=>a+ph):s.replace(re,ph); map.push([ph,to]); };
+    const enRe=en=>new RegExp('\\b'+escRe(en).replace(/\\? /g,'\\s+')+'\\b', isAcr(en)?'g':'gi');
+    if(lang==='ko'){
+      for(const [ko,en] of [...this.pairs].sort((a,b)=>b[0].length-a[0].length)) put(koWordRe(ko),en,true);
+      for(const [st,en] of this.autoPairs) if(!/ /.test(en)) for(const suf of ['시청','시의회','군청']) put(koWordRe(st+suf),en+' '+PLACE_SUF[suf],true);   // 원주 시청 → Wonju City Hall (띄어 들려도)
+      for(const [ko,en] of [...this.autoPairs].sort((a,b)=>b[0].length-a[0].length)) put(koWordRe(ko),en,true);
+    }else{
+      for(const [ko,en] of [...this.pairs].sort((a,b)=>b[1].length-a[1].length)) put(enRe(en), isAcr(en)?ko+'('+en+')':ko);
+      const names=[...this.vocabEn.values()].filter(v=>v.fz && v.kind!=='word').sort((a,b)=>b.form.length-a.form.length);
+      if(!(VB.opt&&VB.opt.keepEn===false)) for(const v of names) put(enRe(v.form), v.form);     // 짝이 없는 영어 기관명·약어는 원어 그대로
     }
     return {q:s,map};
   },
   restore(out,map,tgt){
     let s=out;
-    for(const [ph,to] of map){
-      s=s.replace(new RegExp(ph+'(은|는|이|가|을|를|과|와)?','g'),(m,p)=>to+(p&&tgt==='ko'?fixP(to,p):(p||'')));
-    }
+    for(const [ph,to] of map) s=s.replace(new RegExp(ph+'(은|는|이|가|을|를|과|와)?','g'),(m,p)=>to+(p&&tgt==='ko'?fixP(to,p):(p||'')));
     return s;
+  },
+  list(){
+    if(this._list) return this._list;
+    const set=new Set();
+    for(const [ko,en] of this.pairs){ set.add(ko); set.add(en); }
+    for(const v of this.vocabEn.values()) if(v.fz && v.form.length>=2) set.add(v.form);
+    for(const v of this.vocab.values()) if(v.fz && v.form.length>=3) set.add(v.form);
+    for(const [ko,en] of this.autoPairs) if(/ /.test(en)) set.add(ko);
+    return this._list=[...set].sort((a,b)=>b.length-a.length).slice(0,400);
   }
 };
-function renderTerms(){
-  $('refList').innerHTML=Terms.sources.map(x=>`<div class="src-row">📄 ${esc(x.name)} <span class="note" style="margin:0">(${Math.round(x.text.length/1000)}천 자)</span><button data-rm="${esc(x.name)}">✕</button></div>`).join('');
-  const list=[...Terms.vocab.values()].sort((a,b)=>b.n-a.n);
-  const nf=list.filter(v=>v.fz).length;
-  $('termInfo').textContent = list.length ? `자동 교정 대상 ${nf}개 / 추출 용어 ${list.length}개 (참고자료 ${Terms.sources.length}개${S.slidesText?' + 발표자료':''} + 용어집) — 많이 나온 순:` : '참고자료나 발표자료를 올리면 여기에 교정 기준 용어가 표시됩니다.';
-  $('termChips').innerHTML=list.filter(v=>v.fz).slice(0,40).map(v=>`<span class="chip">${esc(v.form)}</span>`).join('');
-  runFixTest();
-}
-function runFixTest(){
-  const t=$('fixIn').value.trim(); if(!t){ $('fixOut').textContent=''; return; }
-  const out=Terms.correct(t,'ko');
-  $('fixOut').innerHTML = out===t ? '바뀐 곳 없음' : '→ <b>'+esc(out)+'</b>';
-}
-function itemsText(items){
-  let t='';
-  for(const x of items){
-    const str=x.str||'';
-    if(str && t && !/\s$/.test(t) && !/^\s/.test(str) && str.length>1 && !/\n$/.test(t)) t+=' ';
-    t+=str; if(x.hasEOL) t+='\n';
-  }
-  return t;
-}
-async function pdfText(buf){
-  await pdfWorkerReady();
-  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf.slice(0))}).promise; let t='';
-  for(let i=1;i<=pdf.numPages;i++){ const pg=await pdf.getPage(i); const tc=await pg.getTextContent(); t+=itemsText(tc.items)+'\n'; pg.cleanup(); }
-  return t;
-}
-$('btnRef').onclick=()=>$('refFile').click();
-$('refFile').onchange=async e=>{
-  for(const f of e.target.files){
-    $('termInfo').textContent=`${f.name} 읽는 중…`;
-    try{ const text=/\.pdf$/i.test(f.name) ? await pdfText(await f.arrayBuffer()) : await f.text();
-      if(!text.trim()) toast(`${f.name}: 글자를 찾지 못했습니다 (스캔 이미지 PDF일 수 있음)`,4000);
-      Terms.setSource(f.name,text);
-    }catch(err){ console.error(err); $('termInfo').textContent=`${f.name} 읽기 실패: ${err.message}`; }
-  }
-  e.target.value='';
-};
-$('refList').addEventListener('click',e=>{ const n=e.target.dataset.rm; if(n!==undefined) Terms.removeSource(n); });
-let glossTimer;
-$('gloss').addEventListener('input',()=>{ S.glossary=$('gloss').value; clearTimeout(glossTimer); glossTimer=setTimeout(()=>{ Terms.rebuild(); saveSoon(); },400); });
-$('optAutoFix').onchange=()=>{ S.autoFix=$('optAutoFix').checked; runFixTest(); saveSoon(); };
-$('fixIn').addEventListener('input',runFixTest);
-$('btnGlossEx').onclick=()=>{
-  const ex=`# 틀리게 들린 말 → 바른 말  (자막을 고침)
-언제 시청 → 원주시청
-김영석 → 이명섭
-최애 반납 → QR 반납
-탄소 등록 → 탄소중립
-원두지 않게 → 원주시에
-# 바른 말 = 영어 표기  (번역에 그대로 사용)
-원주시청 = Wonju City Hall
-원주시 = Wonju City
-이명섭 = Lee Myeong-seop
-지속가능발전팀 = Sustainable Development Team
-탄소중립 = carbon neutrality
-강원특별자치도 = Gangwon Special Self-Governing Province`;
-  $('gloss').value = ($('gloss').value.trim()? $('gloss').value.trim()+'\n':'') + ex;
-  $('gloss').dispatchEvent(new Event('input'));
-};
+VB.Terms=Terms;
+VB.termList=()=>Terms.list();
 
+function render(){
+  const ko=[...Terms.vocab.values()].filter(v=>v.fz).sort((a,b)=>b.n-a.n);
+  const en=[...Terms.vocabEn.values()].filter(v=>v.fz).sort((a,b)=>(b.kind==='phrase')-(a.kind==='phrase')||b.n-a.n);
+  const main=(VB.S&&VB.S.texts||[]).join('').trim().length, nsrc=Terms.sources.length+(main?1:0);
+  const pairs=[...Terms.pairs.map(p=>[p[0],p[1],'자료']), ...Terms.autoPairs.filter(p=>/ /.test(p[1])).map(p=>[p[0],p[1],'지명'])];
+  $('termInfo').textContent = nsrc ? `자료 ${nsrc}개(발표자료 ${main?1:0} · 참고자료 ${Terms.sources.length})에서 뽑음: 한·영 짝 ${pairs.length}개 · 한국어 용어 ${ko.length}개 · 영어 용어 ${en.length}개` : '발표자료나 참고자료를 올리면 여기에 기준 용어가 표시됩니다.';
+  const rl=$('refList'); rl.innerHTML='';
+  Terms.sources.forEach(x=>{ const r=el('div','rf'); r.appendChild(el('span','','📄 '+x.name)); r.appendChild(el('span','sb','('+Math.max(1,Math.round(x.text.length/1000))+'천 자)')); const b=el('button','','✕'); b.title='빼기'; b.onclick=()=>Terms.removeSource(x.name); r.appendChild(b); rl.appendChild(r); });
+  const pc=$('pairChips'); pc.innerHTML='';
+  if(!pairs.length) pc.appendChild(el('span','sb','아직 없음 — 자료에 「탄소중립(Carbon Neutrality)」처럼 괄호로 함께 적힌 말과 지명(○○시)을 찾습니다'));
+  pairs.slice(0,40).forEach(p=>{ const c=el('span','chip pair',p[0]+' = '+p[1]); c.title=p[2]==='지명'?'지명 로마자 표기(자동)':'자료에 함께 적힌 표기'; pc.appendChild(c); });
+  const enShow=en.filter(v=>!en.some(o=>o!==v && o.kind==='phrase' && enKey(o.form).startsWith(enKey(v.form)+' ')));
+  const tc=$('termChips'); tc.innerHTML='';
+  [...enShow.slice(0,25),...ko.slice(0,25)].forEach(v=>tc.appendChild(el('span','chip',v.form)));
+  R.terms={sources:nsrc,pairs:Terms.pairs.length,placePairs:Terms.autoPairs.filter(p=>/ /.test(p[1])).length,ko:ko.length,en:en.length,tests:(R.terms&&R.terms.tests)||0,fixed:(R.terms&&R.terms.fixed)||0};
+  runTest();
+}
+
+function analyse(t){
+  const lang=isKo(t)?'ko':'en', tgt=lang==='ko'?'en':'ko';
+  const fixed=Terms.correct(t,lang), pr=Terms.protect(fixed,lang);
+  return {lang,tgt,fixed,pr,preview:Terms.restore(pr.q,pr.map,tgt)};
+}
+function runTest(){
+  const out=$('fixOut'); out.innerHTML=''; if($('fixTr')) $('fixTr').textContent='';
+  const t=$('fixIn').value.trim(); if(!t) return;
+  const a=analyse(t);
+  const l1=el('div'); l1.appendChild(document.createTextNode('① 바로잡기: '));
+  if(a.fixed===t) l1.appendChild(el('span','','바뀐 곳 없음')); else l1.appendChild(el('b','',a.fixed));
+  out.appendChild(l1);
+  const l2=el('div'); l2.appendChild(document.createTextNode('② 번역 때 고정: '));
+  l2.appendChild(el('span','',a.pr.map.length ? a.pr.map.map(m=>m[1]).join(' · ') : '없음(자료에 있는 용어가 안 나옴)'));
+  out.appendChild(l2);
+  if(a.pr.map.length){ const l3=el('div','sb','③ 미리보기(번역기에 들어가기 전 모양): '+a.preview); out.appendChild(l3); }
+}
+let tT=null;
+$('fixIn').addEventListener('input',()=>{ clearTimeout(tT); tT=setTimeout(runTest,250); });
+$('fixIn').addEventListener('keydown',e=>{ e.stopPropagation(); if(e.key==='Enter') $('btnFixCard').click(); });
+$('btnFixCard').addEventListener('click',async ()=>{
+  const t=$('fixIn').value.trim(); if(!t) return;
+  const a=analyse(t); R.terms.tests++; if(a.fixed!==t) R.terms.fixed++;
+  const box=$('fixTr'); box.textContent='④ 번역: 번역 중…';
+  let out=null; try{ out=VB.trTerms ? await VB.trTerms(a.fixed,a.lang,a.tgt,true) : null; }catch(e){ VB.log('시험 번역 실패 '+e.message); }
+  box.textContent = out ? '④ 번역: '+out : '④ 번역: 번역 엔진이 아직 준비되지 않았습니다 (⑤ 번역에서 상태 확인)';
+});
+$('refFile').addEventListener('change',async function(){
+  const fs=[...(this.files||[])]; this.value='';
+  for(const f of fs){
+    $('termInfo').textContent=f.name+' 읽는 중…';
+    try{ const tx=await VB.extractText(f);
+      if(!tx.trim()){ VB.err(f.name+': 글자를 찾지 못했습니다(스캔 그림 PDF일 수 있음)'); continue; }
+      Terms.setSource(f.name,tx);
+    }catch(e){ VB.err('참고자료 '+e.message); render(); }
+  }
+});
+let oT=null;
+VB.onTexts=()=>{ clearTimeout(oT); oT=setTimeout(()=>Terms.rebuild(),50); };
+Terms.load(); Terms.rebuild();
+VB.log('S5 자료 용어 연결됨');
+}catch(e){VB.err('S5 '+e.message);}})();
+</script>
+<script>
+/* =========================================================
+   A 앱: 상태·저장 · 귀(가벼운 모드/Whisper) · 번역(크롬 내장/허깅페이스) · 말 처리 · 화자 카드 · 회의록
+   (index.html v0.3.x 작동본의 엔진을 그대로 옮기고, 화면은 원본 보기 + 화자 카드로 바꿈)
+   ========================================================= */
+const $=VB.$, Terms=VB.Terms, D=VB.S, toast=VB.toast;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const isKo=s=>/[가-힣]/.test(s||'');
+const LANGS={ ko:{bcp:'ko-KR',name:'한국어',tag:'KO'}, en:{bcp:'en-US',name:'영어',tag:'EN'} };
+const other=l=>l==='ko'?'en':'ko';
+const LS_KEY='pcap.session.v2', LS_OLD='pcap.session.v1';
+const SPK_DEF={A:'발표자',B:'상대 기관',C:'질문자'};
+
+const S={
+  lang:'ko', translate:true, trEngine:'auto', autoFix:true, keepEn:true, asr:'web', whModel:'small',
+  meta:{date:'',place:'',org:'',people:''}, entries:[], aiSummary:'',
+  speakers:{A:'',B:'',C:''}, override:null, lastLang:'',
+  presenting:false, interim:null
+};
+VB.opt=S;     // 자료 용어 엔진이 '자동 교정'·'원어 유지' 설정을 읽음
+const spName=k=>(S.speakers[k]||'').trim()||SPK_DEF[k]||k;
+
+/* ---------- 저장 (localStorage: 기록 / IndexedDB: 발표자료 원본) ---------- */
+let saveTimer=null;
+function saveSoon(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,400); }
+function saveNow(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify({
+    v:2, savedAt:Date.now(), lang:S.lang, translate:S.translate, trEngine:S.trEngine, autoFix:S.autoFix, keepEn:S.keepEn, asr:S.asr, whModel:S.whModel,
+    meta:S.meta, entries:S.entries, aiSummary:S.aiSummary, speakers:S.speakers, deckName:D.name||'', page:D.cur||0
+  })); }catch(e){ console.warn('자동 저장 실패',e); }
+}
+function loadSaved(){
+  try{ const t=localStorage.getItem(LS_KEY); if(t) return JSON.parse(t); }catch(_){}
+  try{ const o=JSON.parse(localStorage.getItem(LS_OLD)||'null'); if(o){ (o.entries||[]).forEach(e=>{ if(!e.sp) e.sp=e.lang==='ko'?'A':'B'; }); o.deckName=o.pdfName; o.page=(o.page||1)-1; o.old=true; return o; } }catch(_){}
+  return null;
+}
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('pcap',1); r.onupgradeneeded=()=>r.result.createObjectStore('files'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbPut(key,val){ try{ const db=await idb(); await new Promise((res,rej)=>{ const tx=db.transaction('files','readwrite'); tx.objectStore('files').put(val,key); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }catch(e){ console.warn('자료 보관 실패',e); VB.log('자료 보관 실패: '+e.message); } }
+async function idbGet(key){ try{ const db=await idb(); return await new Promise((res,rej)=>{ const r=db.transaction('files').objectStore('files').get(key); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }catch(e){ return null; } }
+async function idbDel(key){ try{ const db=await idb(); db.transaction('files','readwrite').objectStore('files').delete(key); }catch(e){} }
+VB.onDeck=(f,type,name)=>{ f.arrayBuffer().then(buf=>idbPut('deck',{name:name||f.name||'자료',type,data:buf})).catch(()=>{}); saveSoon(); };
+window.addEventListener('beforeunload',saveNow);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) saveNow(); });
+setInterval(()=>{ if(S.presenting) saveNow(); },10000);
+
+/* ---------- 지금 주제: 슬라이드 제목 (PDF는 글자 크기·위치로, PPTX는 제목 칸, HTML은 문서 제목) ---------- */
+VB.slideTitle=function(items,pageH){
+  const its=items.filter(x=>(x.str||'').trim()); if(!its.length) return '';
+  const h=x=>Math.abs(x.height||Math.hypot(x.transform[2],x.transform[3])||0);
+  const top=its.filter(x=>x.transform[5]>pageH*0.45), pool=top.length?top:its, maxH=Math.max(...pool.map(h));
+  const big=pool.filter(x=>h(x)>=maxH*0.8).sort((a,b)=>(Math.abs(b.transform[5]-a.transform[5])>maxH*0.5?b.transform[5]-a.transform[5]:a.transform[4]-b.transform[4]));
+  let t='',prev=null;
+  for(const x of big){ if(prev){ const same=Math.abs(prev.transform[5]-x.transform[5])<=maxH*0.5, gap=x.transform[4]-(prev.transform[4]+(prev.width||0)); if(!same||gap>h(x)*0.2) t+=' '; } t+=x.str; prev=x; }
+  t=t.replace(/[─-▟]+/g,' ').replace(/\s+/g,' ').trim();
+  return ((t.match(/[가-힣A-Za-z]/g)||[]).length>=2 && t.length<=45) ? t : '';
+};
+const titleTr={};
+function slideNo(){ return (D.type==='pdf'||D.type==='pptx') ? D.cur+1 : 0; }
+async function updateTopic(){
+  const t=(D.type==='html' ? D.titles[0] : D.titles[D.cur])||'';
+  const pg=(D.type==='pdf'||D.type==='pptx')&&D.n ? `${D.cur+1}/${D.n} ` : '';
+  $('topicText').textContent = t ? pg+t : (pg ? pg+'(제목 없음)' : '-');
+  const key=t; $('topicTr').textContent = titleTr[key]||'';
+  if(t && S.translate && titleTr[key]===undefined){
+    titleTr[key]='';
+    const l=isKo(t)?'ko':'en';
+    try{ const out=await trTerms(t,l,other(l)); if(out){ titleTr[key]=out; if(((D.type==='html'?D.titles[0]:D.titles[D.cur])||'')===key) $('topicTr').textContent=out; } }catch(_){}
+  }
+}
+VB.onPage=()=>{ updateTopic(); if(S.presenting) saveSoon(); };
+</script>
+<script>
+/* ===== A2 엔진: 문장 나누기 · 번역(허깅페이스·크롬 내장) · 귀(브라우저 내장·Whisper) — index.html v0.3.x에서 그대로 ===== */
 /* =========================================================
    문장 나누기 — 쉬지 않고 말해도 문장 끝(~니다, ~요)에서 끊음
    ========================================================= */
@@ -730,7 +1400,7 @@ const Tr = {
   engine(){ return S.trEngine==='chrome' ? 'chrome' : S.trEngine==='hf' ? 'hf' : (this.chromeOK ? 'chrome' : 'hf'); },
   // 버튼을 누른 순간(사용자 동작)에 호출
   ensure(){
-    if(this.engine()==='hf'){ HF.load(S.lang+other(S.lang)).catch(e=>console.warn('모델 준비 실패',e)); return; }
+    if(this.engine()==='hf'){ const keys=S.asr==='whisper'?['koen'].concat(HF.state.enko==='ready'?[]:[]):[S.lang+other(S.lang)]; keys.forEach(k=>HF.load(k).catch(e=>console.warn('모델 준비 실패',e))); return; }   // 영→한(850MB)은 메모리 부족 위험 → 직접 내려받을 때만
     if(!this.chromeOK || this.creating) return;
     const mk=(s,t)=>Translator.create({
       sourceLanguage:s, targetLanguage:t,
@@ -743,7 +1413,7 @@ const Tr = {
     if(!text) return null;
     const eng=force||this.engine();
     if(eng==='chrome' && !this.pairs[s+t]) return null;
-    if(eng==='hf' && HF.state[s+t]==='none') return null;
+    if(eng==='hf' && (HF.state[s+t]==='none' || HF.state[s+t]==='error')) return null;
     this.busy=true;
     try{ return eng==='chrome' ? await this.pairs[s+t].translate(text) : await HF.translate(text,s+t); }
     catch(e){ console.warn('번역 오류',e); return null; }
@@ -782,7 +1452,7 @@ const within=(p,ms)=>Promise.race([p,new Promise(r=>setTimeout(r,ms))]);   // �
 $('btnCmp').onclick=async()=>{
   readSetup();
   const text=$('cmpIn').value.trim(); if(!text){ $('cmpOut').innerHTML='<p class="note">비교할 문장을 입력하세요.</p>'; return; }
-  const s=S.lang, t=other(s), key=s+t;
+  const s=isKo(text)?'ko':'en', t=other(s), key=s+t;   // 입력한 글의 언어로
   // 크롬 내장 준비 (버튼 클릭 = 사용자 동작)
   const saveEng=S.trEngine;
   if(Tr.chromeOK && !Tr.pairs[key]){ S.trEngine='chrome'; Tr.ensure(); S.trEngine=saveEng; }
@@ -802,7 +1472,7 @@ $('btnCmp').onclick=async()=>{
   const m=HF.models[key];
   if(HF.state[key]==='ready') await run(`허깅페이스 (${s==='ko'?'opus':'NLLB'})`,'hf');
   else { rows.push([`허깅페이스 (${s==='ko'?'opus':'NLLB'})`, `모델을 먼저 내려받아야 비교됩니다 (${m.size}) — 번역 엔진을 '허깅페이스'로 고른 뒤 [내려받기]`, '']); draw(); }
-  if(Terms.pairs.length) { rows.push(['', '※ 용어집의 "바른 말 = 영어"가 번역에 적용되었습니다', '']); draw(); }
+  { const pr=Terms.protect(fixed,s); if(pr.map.length){ rows.push(['', '※ 자료 용어 고정: '+pr.map.map(m=>m[1]).join(', '), '']); draw(); } }
 };
 $('cmpIn').addEventListener('keydown',e=>{ if(e.key==='Enter') $('btnCmp').click(); });
 document.querySelectorAll('input[name=tre]').forEach(r=>r.onchange=()=>{ S.trEngine=r.value; refreshTrStatus(); saveSoon(); });
@@ -855,128 +1525,361 @@ const Speech = {
   stop(){ this.want=false; this.gen++; if(this.rec){ try{ this.rec.abort(); }catch(_){} this.rec=null; } this.handlers.state('off'); }
 };
 
-/* ---------- 미완성 문장 번역 (번역기가 쉬고 있을 때만, 1초 간격) ---------- */
-let lastInterimTr=0, interimSeq=0;
-async function maybeTranslateInterim(src, apply){
-  const s=S.lang, t=other(s);
-  if(!S.translate||Tr.engine()!=='chrome'||!Tr.ready(s,t)||Tr.busy) return;
-  if(src.length<6||Date.now()-lastInterimTr<1000) return;
-  lastInterimTr=Date.now(); const my=++interimSeq;
-  const out=await trTerms(src,s,t);
-  if(my===interimSeq&&out) apply(out);
-}
-
 /* =========================================================
-   준비 화면: 자막 테스트
+   귀 ②: Whisper (기기 안에서 처리, 언어 자동 판단, 한·영 섞어 말하기)
+   - 말이 멈추면(0.7초) 한 덩어리로 잘라서
+   - whisper-base로 언어(한/영)를 먼저 판단하고
+   - whisper-small(기본) 또는 turbo로 그 언어로 받아쓰기
    ========================================================= */
-let testing=false, testLines=[];
-function renderTest(interim){
-  const box=$('testBox');
-  const html=testLines.slice(-2).map(l=>`<div>${esc(l.src)}</div>${l.tgt?`<div class="tgt">${esc(l.tgt)}</div>`:''}`).join('');
-  box.innerHTML = html + (interim?`<div class="interim">${esc(interim)}</div>`:'') || '<span style="opacity:.5">듣고 있습니다… 말해 보세요</span>';
-}
-$('btnTest').onclick=()=>{
-  if(!Speech.supported){ alert('이 브라우저는 음성인식을 지원하지 않습니다. 크롬으로 열어 주세요.'); return; }
-  if(testing){ stopTest(); return; }
-  readSetup();
-  if(S.translate) Tr.ensure();
-  testing=true; testLines=[]; $('btnTest').textContent='■ 테스트 끝내기';
-  Speech.handlers={
-    state(st){ if(st==='off'&&testing) {} },
-    interim(t){ renderTest(t); interimSeq++; },
-    async final(t){
-      const {done,rest}=splitSentences(t,S.lang);
-      for(const x of rest?done.concat([rest]):done){
-        const line={src:punct(Terms.correct(x,S.lang),S.lang),tgt:''}; testLines.push(line); renderTest('');
-        if(S.translate){ const t0=performance.now(); const out=await trTerms(line.src,S.lang,other(S.lang)); if(out){ line.tgt=out+`  (${((performance.now()-t0)/1000).toFixed(1)}초)`; renderTest(''); } }
-      }
-    }
-  };
-  renderTest('');
-  Speech.start(S.lang);
-  setTimeout(()=>{ if(testing) stopTest(); }, 30000);
+const WH_WORKER_CODE = `
+import { pipeline, AutoProcessor, WhisperForConditionalGeneration, Tensor, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
+env.allowLocalModels = false;
+const MODELS = {
+  small: { id:'onnx-community/whisper-small',
+           opts:[{dtype:{encoder_model:'fp16', decoder_model_merged:'q4'}, device:'webgpu', f16:true},
+                 {dtype:{encoder_model:'fp32', decoder_model_merged:'q4'}, device:'webgpu'},
+                 {dtype:'q8', device:'wasm'}] },
+  turbo: { id:'onnx-community/whisper-large-v3-turbo',
+           opts:[{dtype:{encoder_model:'q4f16', decoder_model_merged:'q4f16'}, device:'webgpu', f16:true},
+                 {dtype:{encoder_model:'q4', decoder_model_merged:'q4'}, device:'webgpu'},
+                 {dtype:'q8', device:'wasm'}] }
 };
-function stopTest(){ testing=false; Speech.stop(); $('btnTest').textContent='🎤 테스트 다시 하기'; }
-
-/* =========================================================
-   발표 화면
-   ========================================================= */
-function readSetup(){
-  S.lang = document.querySelector('input[name=lang]:checked').value;
-  S.translate = $('optTranslate').checked;
-  S.trEngine = document.querySelector('input[name=tre]:checked').value;
-  S.reserve = $('optReserve').checked;
-  S.meta = {date:$('mDate').value, place:$('mPlace').value.trim(), org:$('mOrg').value.trim(), people:$('mPeople').value.trim()};
+let asr=null, asrKey=null, lidP=null, lidM=null, ids=null, used='';
+const prog = stage => p => self.postMessage({ type:'progress', stage, p:{ status:p.status, file:p.file, loaded:p.loaded, total:p.total } });
+let f16=null, gpu=null;
+// 그래픽 가속이 '있다고만' 하고 실제로는 못 쓰는 기기가 있어, 실제 장치를 받아 와서 확인
+async function gpuOK(){ if(gpu!==null) return gpu; try{ const a=self.navigator.gpu && await self.navigator.gpu.requestAdapter(); gpu=!!a; f16=!!(a && a.features.has('shader-f16')); }catch(_){ gpu=false; f16=false; } return gpu; }
+async function hasF16(){ await gpuOK(); return f16; }
+async function loadLid(){
+  if(lidM) return;
+  lidP = await AutoProcessor.from_pretrained('onnx-community/whisper-base', { progress_callback:prog('lid') });
+  const tries = (await gpuOK()) ? [{dtype:'fp32',device:'webgpu'},{dtype:'q8',device:'wasm'}] : [{dtype:'q8',device:'wasm'}];
+  let last=null;
+  for(const o of tries){ try{ lidM = await WhisperForConditionalGeneration.from_pretrained('onnx-community/whisper-base', { ...o, progress_callback:prog('lid') }); break; }catch(e){ last=e; } }
+  if(!lidM) throw last;
+  const g = t => lidP.tokenizer.model.tokens_to_ids.get(t);
+  ids = { sot:g('<|startoftranscript|>'), ko:g('<|ko|>'), en:g('<|en|>') };
 }
-function startPresent(){
-  if(!Speech.supported){ alert('이 브라우저는 음성인식을 지원하지 않습니다. 크롬으로 열어 주세요.'); return; }
-  if(testing) stopTest();
-  readSetup();
-  if(S.translate) Tr.ensure();                         // 사용자 클릭 직후에 번역 준비
-  goFull();
-  show('present');
-  S.presenting=true;
-  $('present').classList.toggle('reserve', S.reserve);
-  applyCapSize();
-  showPage();
-  renderCap();
-  utt={committed:0};
-  Speech.handlers = { state:setDot, interim:onInterim, final:onFinal };
-  Speech.start(S.lang);
-  toast(`${LANGS[S.lang].name} 발표 · 자막 시작 (L: 언어 전환, Esc: 종료)`, 3500);
-  saveSoon();
-}
-function endPresent(){
-  S.presenting=false; Speech.stop(); S.interim=null;
-  exitFull(); hideMenu();
-  saveNow(); openMinutes();
-}
-function showPage(){
-  const n=S.slides.length;
-  if(n){ S.page=Math.max(1,Math.min(n,S.page)); $('slide').src=S.slides[S.page-1]; $('slide').hidden=false; $('noslide').hidden=true; $('pageTxt').textContent=`${S.page} / ${n}`; }
-  else { $('slide').hidden=true; $('noslide').hidden=false; $('pageTxt').textContent='–'; }
-}
-function go(d){ if(!S.slides.length) return; const p=S.page+d; if(p<1||p>S.slides.length) return; S.page=p; showPage(); saveSoon(); }
-function setDot(st){ $('dot').className = st==='on'?'on':st==='err'?'err':''; }
-
-let utt={committed:0};   // 지금 말하는 덩어리에서 이미 확정한 문장 수
-function onInterim(t){
-  if(!S.presenting) return;
-  if(!t){ S.interim=null; renderCap(); return; }
-  const {done,rest}=splitSentences(t,S.lang);
-  // 다음 말이 이어지면 앞 문장은 끝난 것 → 바로 확정·번역
-  const ready = rest ? done.length : Math.max(0,done.length-1);
-  while(utt.committed<ready){ commitSentence(done[utt.committed]); utt.committed++; }
-  const shown=done.slice(utt.committed).concat(rest?[rest]:[]).join(' ');
-  if(!shown){ S.interim=null; renderCap(); return; }
-  const prev=S.interim;
-  S.interim={src:Terms.quick(shown), tgt:prev?prev.tgt:''};
-  renderCap();
-  maybeTranslateInterim(S.interim.src, out=>{ if(S.interim&&S.interim.src===Terms.quick(shown)){ S.interim.tgt=out; renderCap(); } });
-  // 문장 끝이 없는 말이 너무 길면 강제 확정 (한국어 70자 / 영어 28단어)
-  const tooLong = S.lang==='ko' ? shown.replace(/\s/g,'').length>70 : shown.split(/\s+/).length>28;
-  if(tooLong) Speech.flush();
-}
-function onFinal(t){
-  if(!S.presenting) return;
-  S.interim=null; interimSeq++;
-  const {done,rest}=splitSentences(t,S.lang);
-  const all=rest?done.concat([rest]):done;
-  if(all.length>utt.committed) all.slice(utt.committed).forEach(commitSentence);
-  else if(all.length){ // 최종 결과가 다르게 나뉜 경우: 마지막 문장이 이미 확정된 것과 다르면 추가
-    const lastF=all[all.length-1], lastC=S.entries[S.entries.length-1];
-    if(!lastC || lev(jamo(lastF),jamo(lastC.raw||lastC.src),99) > jamo(lastF).length*0.4) commitSentence(lastF);
+async function loadAsr(key){
+  if(asr && asrKey===key) return;
+  const m = MODELS[key]; let last=null;
+  for(const o of m.opts){
+    if(o.device==='webgpu' && !(await gpuOK())) continue;
+    if(o.f16 && !(await hasF16())) continue;
+    try{ asr = await pipeline('automatic-speech-recognition', m.id, { dtype:o.dtype, device:o.device, progress_callback:prog('asr') }); asrKey=key; used=o.device; return; }
+    catch(e){ last=e; }
   }
-  utt={committed:0};
-  renderCap();
+  throw last || new Error('모델을 불러오지 못했습니다');
 }
-function commitSentence(raw){
+async function detect(a){
+  const { input_features } = await lidP(a);
+  const out = await lidM({ input_features, decoder_input_ids:new Tensor('int64', BigInt64Array.from([BigInt(ids.sot)]), [1,1]) });
+  const L=out.logits.data, V=out.logits.dims[2], b=(out.logits.dims[1]-1)*V;
+  return { ko:L[b+ids.ko], en:L[b+ids.en] };
+}
+let chain = Promise.resolve();
+self.onmessage = e => {
+  const d = e.data;
+  chain = chain.then(async () => {
+    try{
+      if(d.cmd==='load'){ await loadLid(); await loadAsr(d.model); self.postMessage({ id:d.id, type:'ok', device:used }); return; }
+      if(d.cmd==='asr'){
+        const t0=performance.now();
+        const s = await detect(d.audio); const tl=performance.now();
+        const margin = s.ko - s.en;
+        const lang = (Math.abs(margin) < 1.5 && d.prev) ? d.prev : (margin > 0 ? 'ko' : 'en');   // 애매하면 직전 언어
+        const r = await asr(d.audio, { task:'transcribe', language: lang==='ko' ? 'korean' : 'english' });
+        self.postMessage({ id:d.id, type:'ok', text:(r.text||'').trim(), lang, margin, ms:Math.round(performance.now()-t0), lidMs:Math.round(tl-t0) });
+      }
+    }catch(err){ self.postMessage({ id:d.id, type:'error', message:String((err&&err.message)||err) }); }
+  });
+};
+`;
+// 잘 알려진 Whisper '지어낸 말' (무음·잡음에서 나옴)
+const WH_HALLU = /시청해\s*주셔서|구독|좋아요|알림\s*설정|MBC|KBS|SBS|뉴스\s*[가-힣]{2,3}입니다|자막\s*(제공|by)|Thank you for watching|Subtitles? by|Please subscribe|♪|^[\s.,!?…\-–]*$|^\(.*\)$|^\[.*\]$/i;
+function whBad(text, sec){
+  const t=(text||'').trim(); if(!t) return true;
+  if(WH_HALLU.test(t)) return true;
+  if(t.length > Math.max(40, sec*30)) return true;                         // 말한 시간보다 지나치게 긴 글 (반복 폭주)
+  if(/(.{4,}?)\1{3,}/.test(t.replace(/\s/g,''))) return true;               // 같은 말 4번 이상 반복
+  return false;
+}
+
+const Whisper = {
+  worker:null, seq:0, waits:{}, state:'none', loadP:null, err:'', device:'', prog:{},
+  model:'small',
+  sizes:{ small:'약 330MB (언어판별 포함)', turbo:'약 600MB (언어판별 포함)' },
+  start(){
+    if(this.worker) return;
+    const url=URL.createObjectURL(new Blob([WH_WORKER_CODE],{type:'text/javascript'}));
+    this.worker=new Worker(url,{type:'module'});
+    this.worker.onmessage=e=>this.onmsg(e.data);
+    this.worker.onerror=e=>{
+      this.err=e.message||'Whisper 프로그램을 불러오지 못했습니다';
+      for(const id in this.waits){ this.waits[id].rej(new Error(this.err)); delete this.waits[id]; }
+      if(this.state==='loading'){ this.state='error'; this.loadP=null; }
+      this.worker=null; refreshAsrStatus();
+    };
+  },
+  call(msg,transfer){ this.start(); const id=++this.seq; return new Promise((res,rej)=>{ this.waits[id]={res,rej}; this.worker.postMessage({...msg,id},transfer||[]); }); },
+  onmsg(d){
+    if(d.type==='progress'){
+      const p=d.p; if(p.status==='progress' && p.file) this.prog[d.stage+p.file]={l:p.loaded||0,t:p.total||0};
+      const f=Object.values(this.prog), L=f.reduce((a,b)=>a+b.l,0), T=f.reduce((a,b)=>a+b.t,0);
+      if(T && this.state==='loading') setAsrStatus(`⬇ Whisper 내려받는 중… ${Math.round(L/T*100)}% (${Math.round(L/1048576)} / ${Math.round(T/1048576)}MB) — 처음 한 번만, 와이파이 권장`,'warn');
+      return;
+    }
+    const w=this.waits[d.id]; if(!w) return; delete this.waits[d.id];
+    d.type==='error' ? w.rej(new Error(d.message)) : w.res(d);
+  },
+  load(model){
+    model=model||this.model;
+    if(this.state==='ready' && this.model===model) return Promise.resolve();
+    if(this.loadP && this.model===model) return this.loadP;
+    this.model=model; this.state='loading'; this.prog={}; refreshAsrStatus();
+    this.loadP=this.call({cmd:'load',model}).then(
+      d=>{ this.state='ready'; this.device=d.device; refreshAsrStatus(); },
+      e=>{ this.state='error'; this.err=e.message; this.loadP=null; refreshAsrStatus(); throw e; });
+    return this.loadP;
+  },
+  transcribe(f32,prev){ return this.call({cmd:'asr',audio:f32,prev},[f32.buffer]); },
+
+  /* ---- 마이크 + 말 끊기(VAD) ---- */
+  ctx:null, stream:null, node:null, src:null, running:false, handlers:{},
+  frame:new Float32Array(480), fpos:0, rsPos:0,
+  vad:null, queue:[], busy:false, prevLang:'',
+  // 클릭 직후(사용자 동작)에 호출: 오디오 장치 준비
+  prepare(){ if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000}); }catch(_){ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); } } this.ctx.resume?.(); },
+  resetVad(){ this.vad={speaking:false, buf:[], pre:[], silent:0, voiced:0, floor:0.004, started:0}; this.fpos=0; this.rsPos=0; },
+  async startMic(handlers){
+    this.handlers=handlers||{}; this.prepare(); this.resetVad(); this.queue=[]; this.running=true;
+    this.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
+    this.src=this.ctx.createMediaStreamSource(this.stream);
+    const wl=`class P extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true}}registerProcessor('pcap-tap',P);`;
+    try{
+      await this.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([wl],{type:'text/javascript'})));
+      this.node=new AudioWorkletNode(this.ctx,'pcap-tap'); this.node.port.onmessage=e=>this.push(e.data);
+    }catch(_){ // 오래된 브라우저
+      this.node=this.ctx.createScriptProcessor(4096,1,1); this.node.onaudioprocess=e=>this.push(e.inputBuffer.getChannelData(0).slice(0));
+    }
+    this.src.connect(this.node); const g=this.ctx.createGain(); g.gain.value=0; this.node.connect(g); g.connect(this.ctx.destination);
+    this.handlers.state?.('on');
+  },
+  stopMic(){
+    this.running=false;
+    try{ this.src?.disconnect(); this.node?.disconnect(); }catch(_){}
+    this.stream?.getTracks().forEach(t=>t.stop()); this.stream=null;
+    if(this.vad && this.vad.speaking) this.endSeg();
+    this.handlers.state?.('off');
+  },
+  // 들어온 소리를 16kHz로 맞춰 30ms 조각으로
+  push(chunk){
+    if(!this.running) return;
+    const ratio=this.ctx.sampleRate/16000;
+    if(ratio===1){ for(let i=0;i<chunk.length;i++) this.addSample(chunk[i]); return; }
+    let p=this.rsPos; while(p<chunk.length-1){ const i=Math.floor(p), f=p-i; this.addSample(chunk[i]*(1-f)+chunk[i+1]*f); p+=ratio; } this.rsPos=p-chunk.length+1;
+  },
+  feed16k(f32){ for(let i=0;i<f32.length;i++) this.addSample(f32[i]); },   // 시험용: 녹음 파일을 같은 경로로 넣기
+  addSample(x){ this.frame[this.fpos++]=x; if(this.fpos===480){ this.onFrame(this.frame.slice(0)); this.fpos=0; } },
+  onFrame(fr){
+    const v=this.vad; let e=0; for(let i=0;i<fr.length;i++) e+=fr[i]*fr[i]; const rms=Math.sqrt(e/fr.length);
+    const th=Math.max(0.012, v.floor*3);
+    if(!v.speaking){
+      v.floor = v.floor*0.97 + Math.min(rms,0.05)*0.03;
+      v.pre.push(fr); if(v.pre.length>10) v.pre.shift();                       // 말 시작 전 0.3초
+      v.voiced = rms>th ? v.voiced+1 : 0;
+      if(v.voiced>=3){ v.speaking=true; v.buf=v.pre.slice(); v.pre=[]; v.silent=0; v.loud=0; this.handlers.listening?.(true); }
+    } else {
+      v.buf.push(fr); if(rms>th){ v.silent=0; v.loud++; } else v.silent++;
+      const sec=v.buf.length*0.03;
+      if(v.silent>=23 || sec>=12) this.endSeg();                               // 0.7초 쉬면, 또는 12초면 자름
+    }
+  },
+  endSeg(){
+    const v=this.vad, frames=v.buf, loud=v.loud; v.speaking=false; v.buf=[]; v.silent=0; v.voiced=0;
+    this.handlers.listening?.(false);
+    if(loud<10) return;                                                         // 0.3초도 안 되는 소리는 무시
+    const a=new Float32Array(frames.length*480); frames.forEach((f,i)=>a.set(f,i*480));
+    this.queue.push(a); this.pump();
+  },
+  async pump(){
+    if(this.busy) return; this.busy=true;
+    while(this.queue.length){
+      const a=this.queue.shift(), sec=a.length/16000;
+      this.handlers.busy?.(true, this.queue.length);
+      try{
+        if(this.state!=='ready') await this.load();
+        const r=await this.transcribe(a,this.prevLang);
+        if(!whBad(r.text,sec)){ this.prevLang=r.lang; this.handlers.text?.(r.text, r.lang, r); }
+        else console.info('Whisper 결과 버림(지어낸 말·반복 의심):', r.text);
+      }catch(e){ console.warn('Whisper 오류',e); this.handlers.error?.(e); }
+    }
+    this.busy=false; this.handlers.busy?.(false,0);
+  }
+};
+function setAsrStatus(msg,cls){ const el=$('asrStatus'); if(el){ el.textContent=msg; el.className='status '+(cls||''); } }
+(async()=>{ try{ const a='gpu' in navigator && await navigator.gpu.requestAdapter(); window.__gpuOK=!!a; }catch(_){ window.__gpuOK=false; } try{ refreshAsrStatus(); }catch(_){} })();
+function refreshAsrStatus(){
+  const el=$('asrStatus'); if(!el) return;
+  $('btnWhLoad').hidden = S.asr!=='whisper';
+  $('whOpts').hidden = S.asr!=='whisper';
+  $('langRow').hidden = S.asr==='whisper';
+  if(S.asr!=='whisper'){ setAsrStatus(Speech.supported?'브라우저 내장 음성인식: 아래에서 고른 언어로만 알아듣습니다(한·영 섞인 말은 약함). 말하는 중에도 글자가 뜹니다.':'❌ 이 브라우저는 내장 음성인식이 없습니다. Whisper를 고르거나 크롬으로 열어 주세요.',Speech.supported?'':'bad'); return; }
+  const gpu = window.__gpuOK===true;
+  const m=S.whModel||'small';
+  if(Whisper.state==='ready' && Whisper.model===m){ setAsrStatus(`✅ Whisper(${m}) 준비됨 — ${Whisper.device==='webgpu'?'그래픽 가속(WebGPU)':'CPU(WASM)'}로 실행. 언어 자동 판단, 한·영 섞어 말해도 됩니다.`,'ok'); $('btnWhLoad').hidden=true; return; }
+  if(Whisper.state==='loading'){ setAsrStatus('⬇ Whisper 준비 중…','warn'); return; }
+  setAsrStatus(`⬇ Whisper(${m}) ${Whisper.sizes[m]}을 처음 한 번 내려받아야 합니다.${m==='turbo'&&!gpu?' ※ 이 기기는 그래픽 가속(WebGPU)이 없어 turbo가 매우 느립니다 — small을 권장':''}${Whisper.state==='error'?' ※ 지난번 실패: '+Whisper.err:''}`, Whisper.state==='error'?'bad':'warn');
+}
+</script>
+<script>
+/* ===== A3 말 처리 · 화자 · 카드 · 발표 진행 ===== */
+
+/* ---------- 말의 종류 (규칙 방식 — 소형 언어모델 시험 결과 신뢰도가 낮아 규칙으로) ---------- */
+const Q_RE_EN=/^(do|does|did|can|could|would|will|is|are|was|were|what|how|why|when|where|who|which|have|has|should|may)\b/i;
+const TYPE_ICON={joke:'😄',greeting:'🙏',question:'❓'};
+const TYPE_NAME={joke:'농담',greeting:'인사',question:'질문',info:'설명'};
+function utterType(src,lang){
+  const s=(src||'').trim();
+  if(/(하하|허허|ㅎㅎ|ㅋㅋ|\(웃음\)|\[웃음\]|haha|hehe|\blol\b|\(laugh|\[laugh|just kidding|농담)/i.test(s)) return 'joke';
+  if(/\?\s*$/.test(s) || /(나요|까요|습니까|니까|은가요|는가요|ㄹ까|을까|할까|건가요|던가요|세요\?)[.?!]*$/.test(s) || (lang==='en' && Q_RE_EN.test(s))) return 'question';
+  if(/(감사합니다|고맙습니다|환영합니다|반갑습니다|안녕하십니까|안녕하세요|수고하셨습니다|\bthank(s| you)\b|\bwelcome\b|nice to meet|good (morning|afternoon|evening)|\bpleasure\b|\bappreciate\b)/i.test(s)) return 'greeting';
+  return 'info';
+}
+
+/* ---------- 숫자 검사: 원문 숫자가 번역에 없으면 원문 숫자를 붙여 보여 줌 ---------- */
+function isDig(c){return c>='0'&&c<='9';}
+function numVals(s){
+  const out=[]; let i=0; const n=s.length;
+  while(i<n){
+    if(!isDig(s.charAt(i))){i++;continue;}
+    let j=i,t='';
+    while(j<n){const d=s.charAt(j); if(isDig(d)){t+=d;j++;} else if((d===','||d==='.')&&j+1<n&&isDig(s.charAt(j+1))){if(d==='.')t+='.';j++;} else break;}
+    let v=parseFloat(t),k=j; if(s.charAt(k)===' ')k++;
+    const tail=s.slice(k,k+9).toLowerCase();
+    if(tail.indexOf('조')===0)v*=1e12;else if(tail.indexOf('억')===0)v*=1e8;else if(tail.indexOf('만')===0)v*=1e4;else if(tail.indexOf('천')===0)v*=1e3;
+    else if(tail.indexOf('trillion')===0)v*=1e12;else if(tail.indexOf('billion')===0)v*=1e9;else if(tail.indexOf('million')===0)v*=1e6;else if(tail.indexOf('thousand')===0)v*=1e3;
+    out.push(v); i=j;
+  }
+  return out;
+}
+const fmtN=v=>v>=10000?v.toLocaleString('en-US'):String(v);
+function numCheck(o,t){
+  const a=numVals(o),b=numVals(t); if(!a.length) return null;
+  const bad=a.filter(v=>!b.some(w=>Math.abs(v-w)<=1e-9*Math.max(1,Math.abs(v))));
+  return {ok:!bad.length,a,b,bad};
+}
+/* ---------- 용어 강조: 자료 용어 엔진의 목록 (한국어는 앞이 낱말 경계, 영어는 앞뒤 경계) ---------- */
+function hl(node,text){
+  const T=Terms.list(), low=text.toLowerCase(); let i=0,buf='';
+  while(i<text.length){
+    let hit='';
+    for(const t of T){
+      if(t.length<2||low.substr(i,t.length)!==t.toLowerCase()) continue;
+      if(isKo(t)){ if(/[가-힣]/.test(text.charAt(i-1)||'')) continue; }
+      else if(/[A-Za-z0-9]/.test(text.charAt(i-1)||'')||/[A-Za-z0-9]/.test(text.charAt(i+t.length)||'')) continue;
+      hit=t; break;
+    }
+    if(hit){ if(buf){node.appendChild(document.createTextNode(buf));buf='';} node.appendChild(VB.el('mark','',text.substr(i,hit.length))); i+=hit.length; }
+    else { buf+=text.charAt(i); i++; }
+  }
+  if(buf) node.appendChild(document.createTextNode(buf));
+}
+
+/* ---------- 화자: 언어로 자동(한국어=A, 영어=B) + 1·2·3 키로 바꾸기 ---------- */
+function spFor(lang){ return (S.override && S.override.lang===lang) ? S.override.sp : (lang==='ko'?'A':'B'); }
+function updateSpChips(){
+  const cur=S.interim ? spFor(S.interim.lang||S.lastLang||S.lang) : (S.entries.length ? S.entries[S.entries.length-1].sp : '');
+  document.querySelectorAll('#sideHead [data-sp]').forEach(c=>{
+    const k=c.getAttribute('data-sp');
+    if(k!=='0') c.textContent=({A:'1',B:'2',C:'3'})[k]+' · '+k+' '+spName(k);
+    c.classList.toggle('cur', k==='0' ? !S.override : k===cur);
+  });
+}
+function setSpeaker(sp){
+  if(!sp){ S.override=null; toast('화자 자동: 한국어 = A '+spName('A')+', 영어 = B '+spName('B'),2000); updateSpChips(); return; }
+  const lang=S.interim?.lang || S.lastLang || S.lang;
+  S.override={sp,lang};
+  const e=S.entries[S.entries.length-1];
+  if(e && e.lang===lang && e.sp!==sp && Date.now()-new Date(e.time).getTime()<8000){ e.sp=sp; renderEntry(e); saveSoon(); }   // 방금(8초 안) 나온 카드도 함께
+  toast(`화자: ${sp} ${spName(sp)} (${LANGS[lang].name} — 언어가 바뀌면 다시 자동)`,2000);
+  updateSpChips(); renderLive();
+}
+document.querySelectorAll('#sideHead [data-sp]').forEach(c=>c.addEventListener('click',()=>setSpeaker(c.getAttribute('data-sp')==='0'?'':c.getAttribute('data-sp'))));
+
+/* ---------- 카드 ---------- */
+const list=$('capList'), cardEl=new Map(), MAXC=80;
+let liveEl=null;
+function nearBottom(){ return list.scrollHeight-list.scrollTop-list.clientHeight<120; }
+function clearCards(){ list.innerHTML=''; cardEl.clear(); liveEl=null; list.appendChild(VB.el('div','empty','말을 시작하면 여기에 말한 사람별 통역 카드가 뜹니다.')); }
+function buildCard(c,e,live){
+  const el=VB.el; c.className='card sp-'+e.sp+(e.imp?' imp':'')+(live?' live':''); c.innerHTML='';
+  const w=el('div','who'),bd=el('div','bd'),org=el('div','org'),tr=el('div','tr'),nt=el('div','nt'),mt=el('div','mt');
+  w.appendChild(el('div','av',e.sp)); w.appendChild(el('div','',spName(e.sp))); w.appendChild(el('div','',LANGS[e.lang]?.tag||''));
+  if(!live){ w.title='눌러서 화자 바꾸기 (A→B→C)'; w.style.cursor='pointer'; w.onclick=ev=>{ ev.stopPropagation(); e.sp=({A:'B',B:'C',C:'A'})[e.sp]||'A'; renderEntry(e); saveSoon(); }; }
+  org.appendChild(document.createTextNode((e.lang==='ko'?'KO → EN':'EN → KO')+' | '));
+  if(e.raw){ org.appendChild(document.createTextNode('들린 말 「'+e.raw+'」 → ')); }
+  hl(org,e.src||'');
+  const msg=[];
+  if(live){ tr.textContent=e.tgt||'…'; if(!e.tgt) tr.className='tr wait'; }
+  else if(!S.translate){ tr.textContent='(번역 끔 — 회의록만)'; tr.className='tr wait'; }
+  else if(e.tgt){
+    hl(tr,e.tgt);
+    const nc=numCheck(e.src,e.tgt);
+    if(nc){ if(nc.ok) msg.push('숫자 일치: '+nc.a.map(fmtN).join(', ')); else { msg.push('숫자 확인: 원문 '+nc.a.map(fmtN).join(', ')+' / 번역 '+(nc.b.map(fmtN).join(', ')||'없음')); tr.appendChild(document.createTextNode(' [원문 숫자: '+nc.bad.map(fmtN).join(', ')+']')); } nt.className=nc.ok?'nt ok':'nt'; }
+    if(TYPE_ICON[e.type]) tr.appendChild(document.createTextNode(' '+TYPE_ICON[e.type]));
+  }
+  else if(e.trFail){ tr.textContent=e.trFail==='notready'?'(번역 엔진이 준비되지 않음 — 준비 화면 ④ 번역 상태 확인)':'(번역 실패 — 위 원문 참고)'; tr.className='tr wait'; }
+  else if(e.lang==='en' && Tr.engine()==='hf' && HF.state.enko!=='ready'){ tr.textContent='(영→한 번역 모델이 없어 원문만 — PC 크롬 권장)'; tr.className='tr wait'; }
+  else { tr.textContent='번역 중…'; tr.className='tr wait'; }
+  if(e.terms&&e.terms.length) msg.push('자료 용어: '+e.terms.join(', '));
+  nt.textContent=msg.join(' · ');
+  if(!live){
+    mt.textContent=(e.time?new Date(e.time).toTimeString().slice(0,8):'')+' · '+(e.slide?'슬라이드 '+e.slide:(e.at||'자료 없음'))+' · '+(TYPE_NAME[e.type]||'설명')+(e.trMs!=null?' · 번역 '+(e.trMs/1000).toFixed(1)+'초':'')+(e.imp?' · ★ 중요':'');
+  } else mt.textContent=e.note||'말하는 중…';
+  bd.appendChild(org); if(!live||e.tgt||S.translate) bd.appendChild(tr); if(nt.textContent) bd.appendChild(nt); bd.appendChild(mt);
+  c.appendChild(w); c.appendChild(bd);
+}
+function renderEntry(e){
+  const nb=nearBottom();
+  let c=cardEl.get(e.id);
+  if(!c){
+    const em=list.querySelector('.empty'); if(em) em.remove();
+    c=document.createElement('article'); cardEl.set(e.id,c);
+    if(liveEl&&liveEl.parentNode===list) list.insertBefore(c,liveEl); else list.appendChild(c);
+    while(cardEl.size>MAXC){ const k=cardEl.keys().next().value; const o=cardEl.get(k); if(o) o.remove(); cardEl.delete(k); }
+  }
+  buildCard(c,e,false);
+  if(nb) list.scrollTop=list.scrollHeight;
+}
+function renderLive(){
+  const nb=nearBottom();
+  if(!S.interim){ if(liveEl){ liveEl.remove(); liveEl=null; } updateSpChips(); return; }
+  const lang=S.interim.lang||S.lastLang||S.lang;
+  if(!liveEl){ const em=list.querySelector('.empty'); if(em) em.remove(); liveEl=document.createElement('article'); }
+  if(liveEl.parentNode!==list || liveEl!==list.lastElementChild) list.appendChild(liveEl);
+  buildCard(liveEl,{sp:spFor(lang),lang,src:S.interim.src,tgt:S.interim.tgt||'',note:S.interim.note},true);
+  updateSpChips();
+  if(nb) list.scrollTop=list.scrollHeight;
+}
+function renderAll(){ clearCards(); S.entries.slice(-MAXC).forEach(renderEntry); renderLive(); updateSpChips(); list.scrollTop=list.scrollHeight; }
+function langInd(){
+  $('langInd').textContent = S.asr==='whisper' ? ('언어 자동'+(S.lastLang?' · 방금 '+LANGS[S.lastLang].tag:'')) : (LANGS[S.lang].name+' → '+LANGS[other(S.lang)].name+' (L)');
+}
+
+/* ---------- 문장 확정 → 교정 → 기록 → 번역 ---------- */
+function commitSentence(raw,lang){
   raw=(raw||'').trim(); if(!raw) return;
-  const lang=S.lang, fixed=Terms.correct(raw,lang);
-  const e={id:Date.now()+Math.random(), time:new Date().toISOString(), slide:S.slides.length?S.page:0, lang, src:punct(fixed,lang), tgt:'', imp:false, trMs:null};
+  lang=lang||S.lang;
+  if(S.override && S.override.lang!==lang) S.override=null;     // 언어가 바뀌면 화자는 다시 자동
+  S.lastLang=lang;
+  const fixed=Terms.correct(raw,lang);
+  const e={id:Date.now()+Math.random(), time:new Date().toISOString(), slide:slideNo(), at:D.type==='html'?'HTML':'', lang, sp:spFor(lang), src:punct(fixed,lang), tgt:'', imp:false, trMs:null};
+  e.type=utterType(e.src,lang);
   if(fixed!==raw) e.raw=raw;
+  const pr=Terms.protect(e.src,lang); if(pr.map.length) e.terms=pr.map.map(m=>m[1]);
   if(pendingImp){ e.imp=true; pendingImp=false; }
-  S.entries.push(e); renderCap(); saveSoon();
+  S.entries.push(e); renderEntry(e); updateSpChips(); langInd(); saveSoon();
   if(S.translate) translateEntry(e);
 }
 async function trTerms(text,s,t){
@@ -984,163 +1887,301 @@ async function trTerms(text,s,t){
   const out=await Tr.translate(q,s,t);
   return out ? Terms.restore(out,map,t) : null;
 }
+VB.trTerms=async(text,s,t,ensure)=>{ if(ensure){ readSetup(); Tr.ensure(); if(Tr.creating) await within(Tr.creating,8000); if(Tr.engine()==='hf') await within(HF.load(s+t).catch(()=>{}),20000); } return trTerms(text,s,t); };
 async function translateEntry(e){
-  const t0=performance.now();
-  const out=await trTerms(e.src, e.lang, other(e.lang));
-  if(out){ e.tgt=out; e.trMs=Math.round(performance.now()-t0); renderCap(); saveSoon(); }
-}
-function renderCap(){
-  const N=3;
-  const last=S.entries.slice(-N);
-  // 위 칸: 원문
-  const srcItems=last.map(e=>({t:e.src, imp:e.imp}));
-  if(S.interim) srcItems.push({t:S.interim.src, interim:true});
-  const src=srcItems.slice(-N);
-  $('capSrc').innerHTML=src.map((x,i)=>`<div class="ln${i<src.length-1?' old':''}${x.interim?' interim':''}${x.imp?' imp':''}">${esc(x.t)}</div>`).join('');
-  // 아래 칸: 번역
-  const showTr=S.translate;
-  $('tgtBox').hidden=!showTr;
-  if(showTr){
-    const tgtItems=last.map(e=>({t:e.tgt, wait:!e.tgt, imp:e.imp}));
-    if(S.interim && S.interim.tgt) tgtItems.push({t:S.interim.tgt, interim:true});
-    const tgt=tgtItems.slice(-N);
-    $('capTgt').innerHTML=tgt.map((x,i)=>`<div class="ln${i<tgt.length-1?' old':''}${x.interim?' interim':''}${x.wait?' wait':''}${x.imp?' imp':''}">${x.wait?'…':esc(x.t)}</div>`).join('');
+  const s=e.lang,t=other(s);
+  if(!Tr.ready(s,t)){                                                    // 번역기가 막 준비 중이면 조금 기다림 (첫 문장이 버려지지 않게)
+    if(Tr.creating) await within(Tr.creating,15000);
+    if(Tr.engine()==='hf' && HF.state[s+t]==='loading') await within(HF.loadP[s+t]||Promise.resolve(),60000);
   }
-  const L=LANGS[S.lang], T=LANGS[other(S.lang)];
-  $('lblSrc').textContent = S.lang==='ko' ? '발표 (한국어)' : 'Speaker (English)';
-  $('lblTgt').textContent = S.lang==='ko' ? 'English translation' : '한국어 번역';
-  $('cap').classList.toggle('empty', S.capHidden || src.length===0);
-  fitLines($('capSrc')); if(showTr) fitLines($('capTgt'));
+  const t0=performance.now();
+  let out=null; try{ out=await trTerms(e.src,s,t); }catch(_){}
+  if(out){ e.tgt=out; e.trMs=Math.round(performance.now()-t0); delete e.trFail; }
+  else if(!(s==='en' && Tr.engine()==='hf' && HF.state.enko!=='ready')) e.trFail=Tr.ready(s,t)?'err':'notready';
+  renderEntry(e); saveSoon();
 }
-// 칸에 다 안 들어가면 가장 오래된 줄부터 빼서, 줄이 잘리거나 겹치지 않게 함
-function fitLines(el){
-  const room=el.clientHeight; if(!room) return;
-  const gap=parseFloat(getComputedStyle(el).rowGap)||0;
-  const kids=()=>[...el.children];
-  const total=()=>kids().reduce((a,c)=>a+c.offsetHeight,0)+gap*Math.max(0,el.children.length-1);
-  while(el.children.length>1 && total()>room) el.firstElementChild.remove();
-  // 마지막 줄 하나만으로도 넘치면, 지난 줄 표시를 풀고 끝부분이 보이게 함
-  const last=el.lastElementChild; if(last && last.offsetHeight>room){ last.classList.remove('old'); el.style.justifyContent='flex-end'; }
+
+/* ---------- 가벼운 모드: 말하는 중 글자 + 문장 끝에서 끊기 ---------- */
+let utt={committed:0};
+let lastInterimTr=0, interimSeq=0;
+async function maybeTranslateInterim(src,apply){
+  const s=S.lang,t=other(s);
+  if(!S.translate||Tr.engine()!=='chrome'||!Tr.ready(s,t)||Tr.busy) return;
+  if(src.length<6||Date.now()-lastInterimTr<1000) return;
+  lastInterimTr=Date.now(); const my=++interimSeq;
+  const out=await trTerms(src,s,t);
+  if(my===interimSeq&&out) apply(out);
 }
-window.addEventListener('resize',()=>{ if(S.presenting) renderCap(); });
-function applyCapSize(){
-  document.documentElement.style.setProperty('--cap-size', S.capSize+'px');
-  document.documentElement.style.setProperty('--cap-w', Math.min(48, 22 + S.capSize*0.45)+'vw');
+function onInterim(t){
+  if(!S.presenting) return;
+  if(!t){ S.interim=null; renderLive(); return; }
+  const {done,rest}=splitSentences(t,S.lang);
+  const ready=rest?done.length:Math.max(0,done.length-1);
+  while(utt.committed<ready){ commitSentence(done[utt.committed],S.lang); utt.committed++; }
+  const shown=done.slice(utt.committed).concat(rest?[rest]:[]).join(' ');
+  if(!shown){ S.interim=null; renderLive(); return; }
+  const prev=S.interim;
+  S.interim={src:shown,tgt:prev?prev.tgt:'',lang:S.lang};
+  renderLive();
+  maybeTranslateInterim(shown,out=>{ if(S.interim&&S.interim.src===shown){ S.interim.tgt=out; renderLive(); } });
+  const tooLong=S.lang==='ko'?shown.replace(/\s/g,'').length>70:shown.split(/\s+/).length>28;
+  if(tooLong) Speech.flush();
+}
+function onFinal(t){
+  if(!S.presenting) return;
+  S.interim=null; interimSeq++;
+  const {done,rest}=splitSentences(t,S.lang);
+  const all=rest?done.concat([rest]):done;
+  if(all.length>utt.committed) all.slice(utt.committed).forEach(x=>commitSentence(x,S.lang));
+  else if(all.length){
+    const lastF=all[all.length-1], lastC=S.entries[S.entries.length-1];
+    if(!lastC || VB.lev(VB.jamo(lastF),VB.jamo(lastC.raw||lastC.src),99) > VB.jamo(lastF).length*0.4) commitSentence(lastF,S.lang);
+  }
+  utt={committed:0};
+  renderLive();
+}
+/* ---------- Whisper 모드: 말이 멈추면 한 덩어리씩 (언어 자동) ---------- */
+function onWhisperText(text,lang){
+  if(!S.presenting) return;
+  S.interim=null;
+  const {done,rest}=splitSentences(text,lang);
+  (rest?done.concat([rest]):done).forEach(x=>commitSentence(x,lang));
+  renderLive();
+}
+function setDot(st){ $('dot').className=st==='on'?'on':st==='err'?'err':''; earInd(); }
+function earInd(){
+  const on=$('dot').className==='on';
+  $('earInd').textContent = (S.asr==='whisper' ? 'Whisper'+(Whisper.device?'('+Whisper.device+')':'')+' · 음성 기기 안 처리' : '가벼운 모드 · 음성 외부 전송')+(on?' · 🎙 켜짐':' · 마이크 꺼짐');
+}
+
+/* ---------- 발표 시작·끝 ---------- */
+function readSetup(){
+  S.lang=document.querySelector('input[name=lang]:checked').value;
+  S.translate=$('optTranslate').checked;
+  S.trEngine=document.querySelector('input[name=tre]:checked').value;
+  S.asr=document.querySelector('input[name=asr]:checked').value;
+  S.whModel=$('whModel').value;
+  S.autoFix=$('optAutoFix').checked; S.keepEn=$('optKeepEn').checked;
+  S.speakers={A:$('spA').value.trim(),B:$('spB').value.trim(),C:$('spC').value.trim()};
+  S.meta={date:$('mDate').value,place:$('mPlace').value.trim(),org:$('mOrg').value.trim(),people:$('mPeople').value.trim()};
+}
+function startPresent(){
+  if(testing) stopTest();
+  readSetup();
+  if(S.asr==='web' && !Speech.supported){ VB.note('음성인식 없음','이 브라우저는 내장 음성인식을 지원하지 않습니다. ③에서 Whisper를 고르거나 크롬으로 열어 주세요.'); return; }
+  if(S.asr==='whisper') Whisper.prepare();          // 클릭 직후 오디오 준비
+  if(S.translate) Tr.ensure();                      // 클릭 직후 번역 준비
+  VB.goFull(true);
+  S.presenting=true; S.interim=null; utt={committed:0};
+  VB.view('present');
+  renderAll(); langInd(); earInd(); updateTopic();
+  if(S.asr==='whisper') startWhisperEar();
+  else { Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang); toast(`${LANGS[S.lang].name} 발표 · 통역 시작 (L: 언어 전환 · Esc 두 번: 종료)`,3500); }
+  saveSoon();
+}
+async function startWhisperEar(){
+  try{
+    if(Whisper.state!=='ready'||Whisper.model!==S.whModel){ toast('Whisper 준비 중… (처음이면 내려받기 때문에 몇 분 걸릴 수 있습니다)',6000); S.interim={src:'⬇ Whisper 준비 중…',lang:S.lang,note:'처음 한 번 모델을 내려받습니다'}; renderLive(); await Whisper.load(S.whModel); if(S.interim&&S.interim.src.startsWith('⬇')){ S.interim=null; renderLive(); } }
+    if(!S.presenting) return;
+    await Whisper.startMic({
+      state:setDot,
+      listening(on){ if(!S.presenting) return; if(on) S.interim={src:'🎙 듣는 중…',lang:S.lastLang||S.lang}; else if(S.interim&&S.interim.src==='🎙 듣는 중…') S.interim=Whisper.busy?{src:'⏳ 받아쓰는 중…',lang:S.lastLang||S.lang}:null; renderLive(); },
+      busy(on){ if(!S.presenting) return; if(on&&!(S.interim&&S.interim.src==='🎙 듣는 중…')) S.interim={src:'⏳ 받아쓰는 중…',lang:S.lastLang||S.lang}; if(!on&&S.interim&&S.interim.src==='⏳ 받아쓰는 중…') S.interim=null; renderLive(); },
+      text:onWhisperText,
+      error(e){ toast('Whisper 오류: '+e.message,5000); }
+    });
+    earInd(); toast('Whisper 통역 시작 — 언어 자동 판단 (Esc 두 번: 종료)',3500);
+  }catch(e){
+    console.error(e); setDot('err'); S.interim=null; renderLive();
+    toast('Whisper를 시작하지 못했습니다: '+e.message+' — 가벼운 모드로 바꿉니다',7000);
+    S.asr='web'; langInd(); if(Speech.supported){ Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang); }
+  }
+}
+function endPresent(){
+  if(!S.presenting && !VB.inPresent) return;
+  S.presenting=false; Speech.stop(); if(Whisper.running) Whisper.stopMic(); S.interim=null; renderLive();
+  saveNow(); openMinutes();
 }
 let pendingImp=false;
 function markImportant(){
+  if(S.interim && !/^(🎙|⏳|⬇)/.test(S.interim.src)){ pendingImp=true; toast('★ 지금 말하는 문장을 중요로 표시합니다',1500); return; }
   const e=S.entries[S.entries.length-1];
-  if(S.interim){ pendingImp=true; toast('★ 지금 말하는 문장을 중요로 표시합니다',1500); return; }
   if(!e){ toast('아직 기록된 문장이 없습니다',1500); return; }
-  e.imp=!e.imp; renderCap(); saveSoon();
-  toast(e.imp?'★ 중요 표시':'중요 표시 해제',1500);
+  e.imp=!e.imp; renderEntry(e); saveSoon(); toast(e.imp?'★ 중요 표시':'중요 표시 해제',1500);
 }
 function switchLang(){
-  S.lang=other(S.lang); S.interim=null; utt={committed:0};
-  Speech.start(S.lang); if(S.translate) Tr.ensure(); renderCap(); saveSoon();
-  toast(`발표 언어: ${LANGS[S.lang].name} → 자막 ${LANGS[other(S.lang)].name} 번역`,2500);
+  if(S.asr==='whisper'){ toast('Whisper 모드는 언어를 자동으로 판단합니다',2000); return; }
+  S.lang=other(S.lang); S.interim=null; utt={committed:0}; S.lastLang=S.lang;
+  if(S.override && S.override.lang!==S.lang) S.override=null;
+  Speech.start(S.lang); if(S.translate) Tr.ensure(); renderLive(); langInd(); updateSpChips(); saveSoon();
+  toast(`발표 언어: ${LANGS[S.lang].name} → ${LANGS[other(S.lang)].name} 번역 · 화자 ${spFor(S.lang)}`,2500);
+}
+VB.H={end:endPresent,speaker:setSpeaker,lang:switchLang,imp:markImportant};
+$('bEnd').addEventListener('click',endPresent);
+$('bImp').addEventListener('click',markImportant);
+$('btnStart').addEventListener('click',startPresent);
+const viewOnPresent=VB.onPresent;
+VB.onPresent=()=>{ if(viewOnPresent) viewOnPresent(); updateTopic(); };
+</script>
+<script>
+/* ===== A4 30초 테스트 · 회의록 · 진단 · 시작할 때 ===== */
+let testing=false, testLines=[];
+function renderTest(interim){
+  const box=$('testBox');
+  const html=testLines.slice(-2).map(l=>`<div>${esc(l.src)}</div>${l.tgt?`<div class="tgt">${esc(l.tgt)}</div>`:''}`).join('');
+  box.innerHTML = html + (interim?`<div class="interim">${esc(interim)}</div>`:'') || '<span style="opacity:.5">듣고 있습니다… 말해 보세요</span>';
+}
+$('btnTest').onclick=()=>{
+  if(testing){ stopTest(); return; }
+  readSetup();
+  if(S.asr==='whisper'){ startWhisperTest(); return; }
+  if(!Speech.supported){ VB.note('음성인식 없음','이 브라우저는 내장 음성인식을 지원하지 않습니다. ③에서 Whisper를 고르거나 크롬으로 열어 주세요.'); return; }
+  if(S.translate) Tr.ensure();
+  testing=true; testLines=[]; $('btnTest').textContent='■ 테스트 끝내기';
+  Speech.handlers={
+    state(){},
+    interim(t){ renderTest(t); interimSeq++; },
+    async final(t){
+      const {done,rest}=splitSentences(t,S.lang);
+      for(const x of rest?done.concat([rest]):done){
+        const src=punct(Terms.correct(x,S.lang),S.lang);
+        const line={src:`[${spFor(S.lang)} · ${LANGS[S.lang].tag}] ${src}`,tgt:''}; testLines.push(line); renderTest('');
+        if(S.translate){ const t0=performance.now(); const out=await trTerms(src,S.lang,other(S.lang)); if(out){ line.tgt=out+`  (${((performance.now()-t0)/1000).toFixed(1)}초)`; renderTest(''); } }
+      }
+    }
+  };
+  renderTest('');
+  Speech.start(S.lang);
+  setTimeout(()=>{ if(testing) stopTest(); },30000);
+};
+function stopTest(){ testing=false; Speech.stop(); if(Whisper.running) Whisper.stopMic(); $('btnTest').textContent='🎤 테스트 다시 하기'; }
+async function startWhisperTest(){
+  Whisper.prepare();
+  if(S.translate) Tr.ensure();
+  testing=true; testLines=[]; $('btnTest').textContent='■ 테스트 끝내기';
+  renderTest('Whisper 준비 중…');
+  try{
+    await Whisper.load(S.whModel);
+    await Whisper.startMic({
+      listening(on){ if(testing) renderTest(on?'🎙 듣는 중…':''); },
+      busy(on){ if(testing&&on) renderTest('⏳ 받아쓰는 중…'); },
+      async text(t,lang,r){
+        if(!testing) return;
+        const {done,rest}=splitSentences(t,lang);
+        for(const x of rest?done.concat([rest]):done){
+          const src=punct(Terms.correct(x,lang),lang), ty=utterType(src,lang);
+          const line={src:`[${lang==='ko'?'A':'B'} · ${LANGS[lang].tag} · 받아쓰기 ${(r.ms/1000).toFixed(1)}초] ${TYPE_ICON[ty]?TYPE_ICON[ty]+' ':''}${src}`,tgt:''}; testLines.push(line); renderTest('');
+          if(S.translate){ const out=await trTerms(src,lang,other(lang)); if(out){ line.tgt=out; renderTest(''); } }
+        }
+      },
+      error(e){ renderTest('오류: '+e.message); }
+    });
+    setTimeout(()=>{ if(testing) stopTest(); },30000);
+  }catch(e){ renderTest('Whisper를 시작하지 못했습니다: '+e.message); testing=false; $('btnTest').textContent='🎤 테스트 다시 하기'; }
 }
 
-/* ---------- 키보드·리모컨 ---------- */
-document.addEventListener('keydown', e=>{
-  if(!S.presenting) return;
-  if(e.target.matches('input,textarea,select')) return;
-  const k=e.key, c=e.code;    // code를 쓰면 한글 자판 상태에서도 F·C·L·M이 작동
-  if(['ArrowRight','ArrowDown','PageDown',' ','Enter'].includes(k)){ e.preventDefault(); go(1); return; }
-  if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(k)){ e.preventDefault(); go(-1); return; }
-  if(k==='Home'){ e.preventDefault(); S.page=1; showPage(); return; }
-  if(k==='End'){ e.preventDefault(); S.page=S.slides.length||1; showPage(); return; }
-  if(c==='KeyF'){ e.preventDefault(); toggleFull(); return; }
-  if(c==='KeyC'){ S.capHidden=!S.capHidden; renderCap(); toast(S.capHidden?'자막 숨김 (C: 다시 보이기)':'자막 표시',1500); return; }
-  if(k==='+'||k==='='||c==='NumpadAdd'){ S.capSize=Math.min(54,S.capSize+2); applyCapSize(); saveSoon(); return; }
-  if(k==='-'||k==='_'||c==='NumpadSubtract'){ S.capSize=Math.max(14,S.capSize-2); applyCapSize(); saveSoon(); return; }
-  if(c==='KeyL'){ switchLang(); return; }
-  if(c==='KeyM'){ markImportant(); return; }
-  if(k==='Escape'){ endPresent(); return; }
-  if(k==='F5'){ e.preventDefault(); return; }  // 리모컨의 '슬라이드쇼' 버튼이 새로고침하지 않도록
-});
-function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement; }
-function goFull(){ const d=document.documentElement; try{ const p=(d.requestFullscreen||d.webkitRequestFullscreen)?.call(d); p?.catch?.(()=>{}); }catch(_){} }
-function exitFull(){ if(!fsEl()) return; try{ const p=(document.exitFullscreen||document.webkitExitFullscreen)?.call(document); p?.catch?.(()=>{}); }catch(_){} }
-function toggleFull(){ fsEl()?exitFull():goFull(); }
-['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev, ()=>{
-  if(S.presenting && !fsEl())
-    toast('전체 화면 해제됨 · F 또는 오른쪽 아래 메뉴로 다시 전체 화면', 4000);
-}));
-// 마우스: 2초 가만히 있으면 커서 숨김, 화면 왼쪽/오른쪽 클릭으로 넘김
-let curTimer;
-$('present').addEventListener('mousemove', ()=>{ $('present').classList.remove('nocursor'); clearTimeout(curTimer); curTimer=setTimeout(()=>$('present').classList.add('nocursor'),2000); });
-$('stage').addEventListener('click', e=>{ if(!$('menu').hidden){ hideMenu(); return; } go(e.clientX < $('stage').clientWidth/3 ? -1 : 1); });
-
-// ---------- 터치 메뉴 (태블릿·마우스용) ----------
-function hideMenu(){ $('menu').hidden=true; }
-$('pageNo').addEventListener('click', e=>{ e.stopPropagation(); $('menu').hidden=!$('menu').hidden; });
-$('menu').addEventListener('click', e=>{
-  e.stopPropagation();
-  const m=e.target.closest('button')?.dataset.m; if(!m) return;
-  if(m==='full') toggleFull();
-  if(m==='cap'){ S.capHidden=!S.capHidden; renderCap(); }
-  if(m==='big'){ S.capSize=Math.min(54,S.capSize+2); applyCapSize(); saveSoon(); return; }
-  if(m==='small'){ S.capSize=Math.max(14,S.capSize-2); applyCapSize(); saveSoon(); return; }
-  if(m==='lang') switchLang();
-  if(m==='imp') markImportant();
-  if(m==='end'){ endPresent(); return; }
-  hideMenu();
-});
-let toastTimer;
-function toast(msg,ms=2500){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),ms); }
-
 /* =========================================================
-   회의록 화면
+   회의록
    ========================================================= */
 function openMinutes(){
-  show('minutes');
+  VB.view('minutes');
   $('eDate').value=S.meta.date; $('ePlace').value=S.meta.place; $('eOrg').value=S.meta.org; $('ePeople').value=S.meta.people;
   renderMinutes();
 }
 ['eDate','ePlace','eOrg','ePeople'].forEach(id=>$(id).addEventListener('input',()=>{
-  S.meta={date:$('eDate').value, place:$('ePlace').value, org:$('eOrg').value, people:$('ePeople').value};
+  S.meta={date:$('eDate').value,place:$('ePlace').value,org:$('eOrg').value,people:$('ePeople').value};
   syncSetupMeta(); saveSoon();
 }));
-function hhmmss(iso){ const d=new Date(iso); return d.toTimeString().slice(0,8); }
+const hhmmss=iso=>new Date(iso).toTimeString().slice(0,8);
+const spLabel=k=>k+' '+spName(k);
 function renderMinutes(){
   renderSummary();
-  const list=$('mList');
+  const L=$('mList');
   $('mCount').textContent=`총 ${S.entries.length}문장 · 중요 ${S.entries.filter(e=>e.imp).length}개`;
-  if(!S.entries.length){ list.innerHTML='<p class="note">아직 기록이 없습니다.</p>'; return; }
-  list.innerHTML=S.entries.map((e,i)=>`<div class="mrow" data-i="${i}">
+  if(!S.entries.length){ L.innerHTML='<p class="sb">아직 기록이 없습니다.</p>'; return; }
+  L.innerHTML=S.entries.map((e,i)=>`<div class="mrow" data-i="${i}">
      <div class="t">${hhmmss(e.time)}</div>
-     <div class="t">${e.slide?e.slide+'장':'–'}</div>
+     <div class="t">${e.slide?e.slide+'장':(e.at||'–')}</div>
+     <button class="spb sp-${esc(e.sp)}" data-act="sp" title="눌러서 화자 바꾸기">${esc(spLabel(e.sp))}</button>
      <button class="star${e.imp?' on':''}" data-act="imp" title="중요">★</button>
      <textarea data-f="src">${esc(e.src)}</textarea>
      <textarea class="tgtcol" data-f="tgt" placeholder="(번역 없음)">${esc(e.tgt||'')}</textarea>
      <button class="del" data-act="del" title="이 문장 삭제">✕</button>
    </div>`).join('');
 }
-$('mList').addEventListener('input', e=>{
+$('mList').addEventListener('input',e=>{
   const row=e.target.closest('.mrow'); if(!row||!e.target.dataset.f) return;
   S.entries[+row.dataset.i][e.target.dataset.f]=e.target.value; saveSoon(); renderSummary();
 });
-$('mList').addEventListener('click', e=>{
+$('mList').addEventListener('click',e=>{
   const act=e.target.dataset.act; if(!act) return;
-  const i=+e.target.closest('.mrow').dataset.i;
-  if(act==='imp'){ S.entries[i].imp=!S.entries[i].imp; }
+  const i=+e.target.closest('.mrow').dataset.i, x=S.entries[i];
+  if(act==='imp') x.imp=!x.imp;
+  if(act==='sp') x.sp=({A:'B',B:'C',C:'A'})[x.sp]||'A';
   if(act==='del'){ if(!confirm('이 문장을 삭제할까요?')) return; S.entries.splice(i,1); }
   saveSoon(); renderMinutes();
 });
 function metaDate(){ if(!S.meta.date) return ''; const d=new Date(S.meta.date); return isNaN(d)?S.meta.date:d.toLocaleString('ko-KR',{dateStyle:'long',timeStyle:'short'}); }
+function isQuestion(e){ return e.type==='question' || /\?\s*$/.test(e.src) || (e.lang==='en'&&Q_RE_EN.test(e.src.trim())) || /질문|궁금/.test(e.src); }
+function koText(e){ return e.lang==='ko'?e.src:(e.tgt||e.src); }
+function keywords(n=10){
+  const cnt=new Map(), glo=new Set(Terms.pairs.map(x=>x[0].replace(/\s+/g,'')));
+  for(const e of S.entries){
+    for(const raw of (koText(e).match(/[가-힣A-Za-z0-9]+/g)||[])){
+      if(/^[A-Z][A-Za-z0-9]{1,}$/.test(raw)&&raw.length<=12){ cnt.set(raw,(cnt.get(raw)||0)+1); continue; }
+      if(!/^[가-힣]+$/.test(raw)) continue;
+      const [w]=VB.stripP(raw); if(w.length<2||VB.VERBISH.test(w)||VB.STOP.has(w)) continue;
+      cnt.set(w,(cnt.get(w)||0)+(glo.has(w)||Terms.vocab.has(w)?2:1));
+    }
+  }
+  return [...cnt].filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([w,c])=>`${w}(${c})`);
+}
+function fmtSec(ms){ return ms<100?'0.1초 미만':(ms/1000).toFixed(1)+'초'; }
+function speedLine(){
+  const ms=S.entries.map(e=>e.trMs).filter(x=>x!=null); if(!ms.length) return '번역 속도: 기록 없음';
+  const avg=ms.reduce((a,b)=>a+b,0)/ms.length, over=ms.filter(x=>x>3000).length;
+  return `번역 속도: 평균 ${fmtSec(avg)}, 최대 ${fmtSec(Math.max(...ms))}, 3초 초과 ${over}문장 / ${ms.length}문장 (문장 확정 뒤부터 잰 시간)`;
+}
+function buildSummaryLines(){
+  const E=S.entries; if(!E.length) return ['기록이 없습니다.'];
+  const L=[], t0=new Date(E[0].time), t1=new Date(E[E.length-1].time), mins=Math.max(1,Math.round((t1-t0)/60000));
+  const nko=E.filter(e=>e.lang==='ko').length, nen=E.length-nko;
+  const slides=[...new Set(E.map(e=>e.slide).filter(Boolean))];
+  L.push('■ 개요');
+  L.push(`- 진행: ${hhmmss(E[0].time).slice(0,5)} ~ ${hhmmss(E[E.length-1].time).slice(0,5)} (약 ${mins}분), 기록 ${E.length}문장 (한국어 ${nko} · 영어 ${nen})`);
+  const bySp=['A','B','C'].map(k=>[k,E.filter(e=>e.sp===k).length]).filter(x=>x[1]); if(bySp.length) L.push('- 화자별 발언: '+bySp.map(([k,n])=>`${spLabel(k)} ${n}`).join(' · '));
+  if(slides.length) L.push(`- 다룬 슬라이드: ${slides.length}장 (${Math.min(...slides)}~${Math.max(...slides)}번)`);
+  const kw=keywords(); if(kw.length) L.push(`- 핵심어(나온 횟수): ${kw.join(', ')}`);
+  if(S.aiSummary){ L.push('','■ AI 핵심 요약 (크롬 내장 AI, 검토 필요)'); S.aiSummary.split('\n').filter(x=>x.trim()).forEach(x=>L.push(x.startsWith('-')?x:'- '+x)); }
+  const imp=E.filter(e=>e.imp); if(imp.length){ L.push('',`■ 중요 표시 (${imp.length})`); imp.forEach(e=>L.push(`- [${spLabel(e.sp)} · 슬라이드 ${e.slide||'-'}] ${koText(e)}`)); }
+  if(slides.length){
+    L.push('','■ 슬라이드별 주요 발언');
+    for(const sl of slides.sort((a,b)=>a-b)){
+      const es=E.filter(e=>e.slide===sl), pick=es.find(e=>e.imp)||[...es].sort((a,b)=>koText(b).length-koText(a).length)[0];
+      const tt=(D.titles||[])[sl-1]; L.push(`- ${sl}번${tt?' 「'+tt+'」':''} (${es.length}문장): ${koText(pick)}`);
+    }
+  }
+  const qs=E.filter(isQuestion); if(qs.length){ L.push('',`■ 질문·요청 (${qs.length})`); qs.forEach(e=>L.push(`- [${hhmmss(e.time).slice(0,5)} · ${spLabel(e.sp)}] ${e.src}${e.lang==='en'&&e.tgt?' / '+e.tgt:''}`)); }
+  L.push('','■ 기록 품질');
+  L.push('- '+speedLine().replace('번역 속도: ','번역 속도 '));
+  const fx=E.filter(e=>e.raw).length; if(fx) L.push(`- 자료 용어로 자동 교정 ${fx}문장 (각 문장 아래 '교정 전' 확인)`);
+  const nt=S.translate?E.filter(e=>!e.tgt).length:0; if(nt) L.push(`- 번역 없는 문장 ${nt}개`);
+  return L;
+}
+function renderSummary(){ $('sumBox').textContent=buildSummaryLines().join('\n'); }
 function buildTxt(){
   const L=[];
   L.push('회의록 (발표 통역 자막 도우미)','');
-  L.push('일시: '+metaDate(), '장소: '+S.meta.place, '기관: '+S.meta.org, '참석자: '+S.meta.people);
-  L.push('자료: '+(S.pdfName||'-'), '기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
+  L.push('일시: '+metaDate(),'장소: '+S.meta.place,'기관: '+S.meta.org,'참석자: '+S.meta.people);
+  L.push('화자: '+['A','B','C'].map(spLabel).join(' / '));
+  L.push('자료: '+(D.name||'-'),'기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
   L.push(speedLine());
   L.push('','==================== 요약 정보 ====================','');
   buildSummaryLines().forEach(x=>L.push(x));
   L.push('','==================== 전체 기록 ====================','');
   S.entries.forEach(e=>{
-    L.push(`[${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}]${e.imp?' ★중요':''}${e.trMs!=null?` (번역 ${fmtSec(e.trMs)})`:''}`);
-    L.push(`원문(${LANGS[e.lang].tag}): ${e.src}`);
+    L.push(`[${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}] [${spLabel(e.sp)}] [${TYPE_NAME[e.type]||'설명'}]${e.imp?' ★중요':''}${e.trMs!=null?` (번역 ${fmtSec(e.trMs)})`:''}`);
+    L.push(`원문(${LANGS[e.lang].tag}): ${TYPE_ICON[e.type]?TYPE_ICON[e.type]+' ':''}${e.src}`);
     if(e.raw) L.push(`  ※ 자동 교정 전: ${e.raw}`);
     if(e.tgt) L.push(`번역(${LANGS[other(e.lang)].tag}): ${e.tgt}`);
     L.push('');
@@ -1148,71 +2189,54 @@ function buildTxt(){
   L.push('※ 이 파일을 Claude에 올리고 "이 회의록으로 국외출장 결과보고서 초안을 써 줘"라고 요청하면 보고서 초안을 만들 수 있습니다.');
   return L.join('\r\n');
 }
-/* ---------- 회의록 요약 (규칙 기반, 기기 안에서 계산) ---------- */
-const Q_RE_EN=/^(do|does|did|can|could|would|will|is|are|was|were|what|how|why|when|where|who|which|have|has|should|may)\b/i;
-function isQuestion(e){ return /\?\s*$/.test(e.src) || (e.lang==='en' && Q_RE_EN.test(e.src.trim())) || /질문|궁금/.test(e.src); }
-function koText(e){ return e.lang==='ko' ? e.src : (e.tgt||e.src); }   // 요약은 한국어 기준
-function keywords(n=10){
-  const cnt=new Map(), glo=new Set([...Terms.pairs.map(x=>x[0]), ...Terms.fixes.map(x=>x[1])].map(x=>x.replace(/\s+/g,'')));
-  for(const e of S.entries){
-    for(const raw of (koText(e).match(/[가-힣A-Za-z0-9]+/g)||[])){
-      if(/^[A-Z][A-Za-z0-9]{1,}$/.test(raw) && raw.length<=12){ cnt.set(raw,(cnt.get(raw)||0)+1); continue; }
-      if(!/^[가-힣]+$/.test(raw)) continue;
-      const [w]=stripP(raw); if(w.length<2||VERBISH.test(w)||STOP.has(w)) continue;
-      cnt.set(w,(cnt.get(w)||0)+(glo.has(w)||Terms.vocab.has(w)?2:1));
-    }
-  }
-  return [...cnt].filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([w,c])=>`${w}(${c})`);
+function buildMd(){
+  const cell=s=>(s||'').replace(/\|/g,'\\|').replace(/\n/g,' ');
+  const L=['# 회의록','','| 항목 | 내용 |','|---|---|'];
+  L.push(`| 일시 | ${cell(metaDate())} |`,`| 장소 | ${cell(S.meta.place)} |`,`| 기관 | ${cell(S.meta.org)} |`,`| 참석자 | ${cell(S.meta.people)} |`,`| 화자 | ${cell(['A','B','C'].map(spLabel).join(' / '))} |`,`| 자료 | ${cell(D.name||'-')} |`,`| 번역 속도 | ${cell(speedLine().replace('번역 속도: ',''))} |`);
+  L.push('','## 요약 정보','');
+  buildSummaryLines().forEach(x=>{ if(!x) return; if(x.startsWith('■ ')) L.push('','### '+x.slice(2)); else L.push(x); });
+  L.push('','> 이 파일을 Claude에 올리고 "이 회의록으로 국외출장 결과보고서 초안을 써 줘"라고 요청하면 보고서 초안을 만들 수 있습니다.');
+  L.push('','## 전체 기록','','| 시각 | 슬라이드 | 화자 | 종류 | 중요 | 원문 | 번역 |','|---|---|---|---|---|---|---|');
+  S.entries.forEach(e=>L.push(`| ${hhmmss(e.time)} | ${e.slide||'-'} | ${cell(spLabel(e.sp))} | ${TYPE_NAME[e.type]||'설명'} | ${e.imp?'★':''} | ${TYPE_ICON[e.type]||''}${cell(e.src)}${e.raw?' <br><sub>교정 전: '+cell(e.raw)+'</sub>':''} | ${cell(e.tgt)} |`));
+  return L.join('\n');
 }
-function buildSummaryLines(){
-  const E=S.entries; if(!E.length) return ['기록이 없습니다.'];
-  const L=[], t0=new Date(E[0].time), t1=new Date(E[E.length-1].time);
-  const mins=Math.max(1,Math.round((t1-t0)/60000));
-  const nko=E.filter(e=>e.lang==='ko').length, nen=E.length-nko;
-  const slides=[...new Set(E.map(e=>e.slide).filter(Boolean))];
-  L.push('■ 개요');
-  L.push(`- 진행: ${hhmmss(E[0].time).slice(0,5)} ~ ${hhmmss(E[E.length-1].time).slice(0,5)} (약 ${mins}분), 기록 ${E.length}문장 (한국어 발언 ${nko} · 영어 발언 ${nen})`);
-  if(slides.length) L.push(`- 다룬 슬라이드: ${slides.length}장 (${Math.min(...slides)}~${Math.max(...slides)}번)`);
-  const kw=keywords(); if(kw.length) L.push(`- 핵심어(나온 횟수): ${kw.join(', ')}`);
-  if(S.aiSummary){ L.push('','■ AI 핵심 요약 (크롬 내장 AI, 검토 필요)'); S.aiSummary.split('\n').filter(x=>x.trim()).forEach(x=>L.push(x.startsWith('-')?x:'- '+x)); }
-  const imp=E.filter(e=>e.imp);
-  if(imp.length){ L.push('',`■ 중요 표시 (${imp.length})`); imp.forEach(e=>L.push(`- [슬라이드 ${e.slide||'-'}] ${koText(e)}`)); }
-  if(slides.length){
-    L.push('','■ 슬라이드별 주요 발언');
-    for(const sl of slides.sort((a,b)=>a-b)){
-      const es=E.filter(e=>e.slide===sl);
-      const pick=es.find(e=>e.imp) || [...es].sort((a,b)=>koText(b).length-koText(a).length)[0];
-      L.push(`- ${sl}번 (${es.length}문장): ${koText(pick)}`);
-    }
-  }
-  const qs=E.filter(isQuestion);
-  if(qs.length){ L.push('',`■ 질문·요청 (${qs.length})`); qs.forEach(e=>L.push(`- [${hhmmss(e.time).slice(0,5)}] ${e.src}${e.lang==='en'&&e.tgt?' / '+e.tgt:''}`)); }
-  L.push('','■ 기록 품질');
-  L.push('- '+speedLine().replace('번역 속도: ','번역 속도 '));
-  const fx=E.filter(e=>e.raw).length; if(fx) L.push(`- 자동 교정 ${fx}문장 (각 문장 아래 '교정 전' 확인)`);
-  const nt=S.translate?E.filter(e=>!e.tgt).length:0; if(nt) L.push(`- 번역 없는 문장 ${nt}개`);
-  return L;
+function fileBase(){
+  const d=S.meta.date?new Date(S.meta.date):new Date(S.entries[0]?.time||Date.now()), p=n=>String(n).padStart(2,'0');
+  const stamp=isNaN(d)?'':`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  const org=(S.meta.org||'').replace(/[\\/:*?"<>|]/g,'').slice(0,30);
+  return ['회의록',stamp,org].filter(Boolean).join('_');
 }
-function renderSummary(){ $('sumBox').textContent=buildSummaryLines().join('\n'); }
-
+function download(text,ext,mime){
+  const blob=new Blob(['﻿'+text],{type:mime+';charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fileBase()+ext;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+$('btnTxt').onclick=()=>download(buildTxt(),'.txt','text/plain');
+$('btnMd').onclick=()=>download(buildMd(),'.md','text/markdown');
+$('btnBack').onclick=startPresent;
+$('btnSetup').onclick=()=>{ VB.view('setup'); refreshTrStatus(); };
+$('btnNew').onclick=()=>{
+  if(!confirm('지금 기록을 지우고 새 회의를 시작할까요?\n(먼저 .txt/.md로 저장했는지 확인하세요)')) return;
+  S.entries=[]; S.aiSummary=''; S.override=null; S.lastLang=''; S.meta={date:nowLocal(),place:'',org:'',people:''}; syncSetupMeta(); saveNow(); clearCards();
+  VB.view('setup');
+};
 /* ---------- AI 핵심 요약 (크롬 내장 Summarizer, PC 전용) ---------- */
 $('btnAiSum').onclick=async()=>{
   const st=$('aiSumStatus');
   if(!('Summarizer' in self)){ st.textContent='❌ 이 기기·브라우저에는 크롬 내장 AI 요약이 없습니다 (PC 크롬, 고사양 필요). 대신 저장한 회의록을 Claude에 올려 요약을 요청하세요.'; return; }
   if(!S.entries.length){ st.textContent='기록이 없습니다.'; return; }
-  // 영어 쪽 글을 요약 → 한국어로 번역 (한국어 직접 요약은 지원되지 않을 수 있음)
   const enText=S.entries.map(e=>e.lang==='en'?e.src:(e.tgt||'')).filter(Boolean).join('\n');
   if(enText.length<200){ st.textContent='요약할 내용이 너무 짧습니다 (번역 문장이 더 필요합니다).'; return; }
   try{
     st.textContent='AI 요약 준비 중… (처음에는 모델 내려받기로 몇 분 걸릴 수 있음)';
     const sm=await Summarizer.create({type:'key-points',format:'plain-text',length:'medium',
       sharedContext:'Transcript of a meeting between Wonju City (Korea) officials and a host organization abroad.',
-      expectedInputLanguages:['en'], outputLanguage:'en',
+      expectedInputLanguages:['en'],outputLanguage:'en',
       monitor(m){ m.addEventListener('downloadprogress',e=>st.textContent=`AI 요약 모델 내려받는 중… ${Math.round(e.loaded*100)}%`); }});
     st.textContent='요약 중…';
     const chunks=[]; for(let i=0;i<enText.length;i+=6000) chunks.push(enText.slice(i,i+6000));
-    let parts=[]; for(const c of chunks) parts.push(await sm.summarize(c));
-    let en = parts.length>1 ? await sm.summarize(parts.join('\n')) : parts[0];
+    const parts=[]; for(const c of chunks) parts.push(await sm.summarize(c));
+    const en=parts.length>1?await sm.summarize(parts.join('\n')):parts[0];
     const lines=en.split('\n').map(x=>x.replace(/^[\s*•\-]+/,'').trim()).filter(Boolean);
     let ko=lines;
     if(Tr.chromeOK){ try{ if(!Tr.pairs.enko){ const sv=S.trEngine; S.trEngine='chrome'; Tr.ensure(); S.trEngine=sv; await within(Tr.creating,15000); }
@@ -1222,96 +2246,74 @@ $('btnAiSum').onclick=async()=>{
   }catch(e){ console.error(e); st.textContent='AI 요약 실패: '+e.message+' — 저장한 회의록을 Claude에 올려 요약을 요청하세요.'; }
 };
 
-function fmtSec(ms){ return ms<100 ? '0.1초 미만' : (ms/1000).toFixed(1)+'초'; }
-function speedLine(){
-  const ms=S.entries.map(e=>e.trMs).filter(x=>x!=null); if(!ms.length) return '번역 속도: 기록 없음';
-  const avg=ms.reduce((a,b)=>a+b,0)/ms.length, over=ms.filter(x=>x>3000).length;
-  return `번역 속도: 평균 ${fmtSec(avg)}, 최대 ${fmtSec(Math.max(...ms))}, 3초 초과 ${over}문장 / ${ms.length}문장 (음성인식이 문장을 확정한 뒤부터 잰 시간)`;
-}
-function buildMd(){
-  const cell=s=>(s||'').replace(/\|/g,'\\|').replace(/\n/g,' ');
-  const L=[];
-  L.push('# 회의록','');
-  L.push('| 항목 | 내용 |','|---|---|');
-  L.push(`| 번역 속도 | ${cell(speedLine().replace('번역 속도: ',''))} |`);
-  L.push(`| 일시 | ${cell(metaDate())} |`,`| 장소 | ${cell(S.meta.place)} |`,`| 기관 | ${cell(S.meta.org)} |`,`| 참석자 | ${cell(S.meta.people)} |`,`| 자료 | ${cell(S.pdfName||'-')} |`);
-  L.push('','## 요약 정보','');
-  buildSummaryLines().forEach(x=>{ if(!x) return; if(x.startsWith('■ ')) L.push('','### '+x.slice(2)); else L.push(x); });
-  L.push('','> 이 파일을 Claude에 올리고 "이 회의록으로 국외출장 결과보고서 초안을 써 줘"라고 요청하면 보고서 초안을 만들 수 있습니다.');
-  L.push('','## 전체 기록','','| 시각 | 슬라이드 | 중요 | 원문 | 번역 | 번역(초) |','|---|---|---|---|---|---|');
-  S.entries.forEach(e=>L.push(`| ${hhmmss(e.time)} | ${e.slide||'-'} | ${e.imp?'★':''} | ${cell(e.src)}${e.raw?' <br><sub>교정 전: '+cell(e.raw)+'</sub>':''} | ${cell(e.tgt)} | ${e.trMs!=null?fmtSec(e.trMs):''} |`));
-  return L.join('\n');
-}
-function fileBase(){
-  const d=S.meta.date?new Date(S.meta.date):new Date(S.entries[0]?.time||Date.now());
-  const p=n=>String(n).padStart(2,'0');
-  const stamp=isNaN(d)?'':`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
-  const org=(S.meta.org||'').replace(/[\\/:*?"<>|]/g,'').slice(0,30);
-  return ['회의록',stamp,org].filter(Boolean).join('_');
-}
-function download(text,ext,mime){
-  const blob=new Blob(['\ufeff'+text],{type:mime+';charset=utf-8'});   // \ufeff: 메모장 한글 깨짐 방지
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fileBase()+ext;
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-}
-$('btnTxt').onclick=()=>download(buildTxt(),'.txt','text/plain');
-$('btnMd').onclick=()=>download(buildMd(),'.md','text/markdown');
-$('btnBack').onclick=startPresent;
-$('btnSetup').onclick=()=>{ show('setup'); refreshTrStatus(); };
-$('btnNew').onclick=()=>{
-  if(!confirm('지금 기록을 지우고 새 회의를 시작할까요?\n(먼저 .txt/.md로 저장했는지 확인하세요)')) return;
-  S.entries=[]; S.aiSummary=''; S.meta={date:nowLocal(),place:'',org:'',people:''}; S.page=1; syncSetupMeta(); saveNow();
-  show('setup');
+/* ---------- 진단 (파일 이름·내용·기록 문장은 넣지 않음) ---------- */
+VB.report=function(){
+  const R=VB.R, strip=(o,drop)=>{ if(!o) return o; const c={}; Object.keys(o).forEach(k=>{ if(drop.indexOf(k)<0) c[k]=o[k]; }); return c; };
+  return {app:'index',v:VB.v,date:VB.d,at:new Date().toISOString(),ua:navigator.userAgent,screen:[screen.width,screen.height,window.devicePixelRatio||1],view:[innerWidth,innerHeight],
+    deck:{type:D.type||'없음',pages:D.n||null,cur:D.cur,titles:(D.titles||[]).filter(Boolean).length},file:R.file?strip(R.file,['name']):null,
+    pdf:R.pdf?strip(R.pdf,['pageMs','textChars']):null,pptx:R.pptx?strip(R.pptx,['navMs','textChars']):null,html:R.html?strip(R.html,['frameErrMsgs']):null,
+    terms:R.terms||null,asr:S.asr,whisper:{state:Whisper.state,model:Whisper.model,device:Whisper.device,err:Whisper.err||''},speech:Speech.supported,
+    tr:{engine:Tr.engine(),chrome:Tr.chromeOK,pairs:Object.keys(Tr.pairs),hf:HF.state,err:HF.err||''},translate:S.translate,
+    entries:S.entries.length,bySpeaker:['A','B','C'].map(k=>S.entries.filter(e=>e.sp===k).length),fixed:S.entries.filter(e=>e.raw).length,
+    layout:VB.SET,wake:R.wake||'-',fullscreen:VB.isFull(),errors:VB.errors.slice(-10)};
 };
 
-/* =========================================================
-   공통
-   ========================================================= */
-function show(id){ ['setup','present','minutes'].forEach(x=>$(x).hidden = x!==id); window.scrollTo(0,0); }
-function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* ---------- 공통 ---------- */
 function nowLocal(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); }
 function syncSetupMeta(){ $('mDate').value=S.meta.date; $('mPlace').value=S.meta.place; $('mOrg').value=S.meta.org; $('mPeople').value=S.meta.people; }
 function syncSetupOptions(){
-  document.querySelector(`input[name=lang][value=${S.lang}]`).checked=true;
-  $('optTranslate').checked=S.translate; $('optReserve').checked=S.reserve;
-  const te=document.querySelector(`input[name=tre][value=${S.trEngine||'auto'}]`); if(te) te.checked=true;
-  $('gloss').value=S.glossary||''; $('optAutoFix').checked=S.autoFix!==false; Terms.rebuild();
+  const q=(n,v)=>{ const r=document.querySelector(`input[name=${n}][value=${v}]`); if(r) r.checked=true; };
+  q('lang',S.lang); q('asr',S.asr||'web'); q('tre',S.trEngine||'auto');
+  $('optTranslate').checked=S.translate; $('whModel').value=S.whModel||'small';
+  $('optAutoFix').checked=S.autoFix!==false; $('optKeepEn').checked=S.keepEn!==false;
+  $('spA').value=S.speakers.A||''; $('spB').value=S.speakers.B||''; $('spC').value=S.speakers.C||'';
+  refreshAsrStatus(); refreshTrStatus();
 }
-document.querySelectorAll('input[name=lang]').forEach(r=>r.onchange=()=>{ S.lang=r.value; refreshTrStatus(); });
-$('btnStart').onclick=startPresent;
+document.querySelectorAll('input[name=lang]').forEach(r=>r.onchange=()=>{ S.lang=r.value; refreshTrStatus(); saveSoon(); });
+document.querySelectorAll('input[name=asr]').forEach(r=>r.onchange=()=>{ S.asr=r.value; refreshAsrStatus(); saveSoon(); });
+$('whModel').onchange=()=>{ S.whModel=$('whModel').value; refreshAsrStatus(); saveSoon(); };
+$('btnWhLoad').onclick=()=>{ readSetup(); Whisper.load(S.whModel).catch(()=>{}); };
 $('btnGoMinutes').onclick=()=>{ readSetup(); openMinutes(); };
+$('optTranslate').onchange=()=>{ S.translate=$('optTranslate').checked; saveSoon(); };
+$('optAutoFix').onchange=()=>{ S.autoFix=$('optAutoFix').checked; $('fixIn').dispatchEvent(new Event('input')); saveSoon(); };
+$('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispatchEvent(new Event('input')); saveSoon(); };
+['spA','spB','spC'].forEach(id=>$(id).addEventListener('input',()=>{ S.speakers={A:$('spA').value.trim(),B:$('spB').value.trim(),C:$('spC').value.trim()}; updateSpChips(); saveSoon(); }));
+['mDate','mPlace','mOrg','mPeople'].forEach(id=>$(id).addEventListener('input',()=>{ readSetup(); saveSoon(); }));
 
 /* ---------- 시작할 때: 환경 점검 + 이전 기록 복구 ---------- */
 (async function init(){
   const warns=[];
-  if(!Speech.supported) warns.push('이 브라우저는 음성인식을 지원하지 않습니다. <b>크롬(PC)</b>으로 열어 주세요.');
-  if(!window.pdfjsLib) warns.push('PDF 프로그램을 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침(F5) 하세요.');
+  if(!Speech.supported) warns.push('이 브라우저는 내장 음성인식이 없습니다. ③에서 <b>Whisper</b>를 고르거나 <b>크롬(PC)</b>으로 열어 주세요.');
   if(warns.length){ $('envWarn').innerHTML=warns.map(w=>'⚠ '+w).join('<br>'); $('envWarn').hidden=false; }
-
-  $('mDate').value=nowLocal();
+  $('mDate').value=nowLocal(); readSetup();
   const saved=loadSaved();
-  if(saved){ S.glossary=saved.glossary||''; S.autoFix=saved.autoFix!==false; $('gloss').value=S.glossary; $('optAutoFix').checked=S.autoFix; }
-  Terms.load();
-  if(saved && (saved.entries?.length || saved.pdfName)){
+  if(saved){
+    Object.assign(S,{autoFix:saved.autoFix!==false,keepEn:saved.keepEn!==false,speakers:saved.speakers||S.speakers,asr:saved.asr||'web',whModel:saved.whModel||'small',trEngine:saved.trEngine||'auto',lang:saved.lang||'ko',translate:saved.translate!==false});
+    syncSetupOptions(); Terms.rebuild();
+  }
+  if(saved && (saved.entries?.length || saved.deckName)){
     const when=new Date(saved.savedAt).toLocaleString('ko-KR');
-    $('restoreInfo').innerHTML=`${esc(saved.meta?.org||'(기관 미입력)')} · 기록 ${saved.entries?.length||0}문장 · 자료 ${esc(saved.pdfName||'없음')} · 마지막 저장 ${when}`;
+    $('restoreInfo').textContent=`${saved.meta?.org||'(기관 미입력)'} · 기록 ${saved.entries?.length||0}문장 · 자료 ${saved.deckName||'없음'} · 마지막 저장 ${when}`;
     $('restore').hidden=false;
     const apply=async()=>{
-      Object.assign(S,{lang:saved.lang||'ko',translate:saved.translate!==false,trEngine:saved.trEngine||'auto',glossary:saved.glossary||'',autoFix:saved.autoFix!==false,reserve:saved.reserve!==false,meta:saved.meta||S.meta,entries:saved.entries||[],aiSummary:saved.aiSummary||'',page:saved.page||1,capSize:saved.capSize||26});
-      syncSetupMeta(); syncSetupOptions(); refreshTrStatus();
-      const f=await idbGet('pdf'); if(f&&f.data){ const pg=S.page; await loadPdf(f.data,f.name); S.page=pg; }
-      $('restore').hidden=true;
+      Object.assign(S,{meta:saved.meta||S.meta,entries:saved.entries||[],aiSummary:saved.aiSummary||''});
+      syncSetupMeta(); syncSetupOptions();
+      let f=await idbGet('deck'); if(!f){ const o=await idbGet('pdf'); if(o&&o.data) f={name:o.name||'자료.pdf',type:'pdf',data:o.data}; }
+      if(f&&f.data){ try{ await VB.loadFile(new File([f.data],f.name)); if(saved.page) VB.goPage(saved.page); }catch(e){ VB.err('자료 복구: '+e.message); } }
+      $('restore').hidden=true; renderAll();
     };
     $('btnResume').onclick=apply;
     $('btnRestoreMinutes').onclick=async()=>{ await apply(); openMinutes(); };
     $('btnDiscard').onclick=async()=>{
-      if(!confirm('저장된 기록과 PDF를 지울까요? (먼저 회의록을 저장했는지 확인하세요)')) return;
-      try{ localStorage.removeItem(LS_KEY); saveNow(); }catch(_){}
-      await idbDel('pdf'); $('restore').hidden=true;
+      if(!confirm('저장된 기록과 발표자료를 지울까요? (먼저 회의록을 저장했는지 확인하세요)')) return;
+      try{ localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_OLD); }catch(_){}
+      S.entries=[]; S.aiSummary=''; saveNow(); await idbDel('deck'); await idbDel('pdf'); $('restore').hidden=true;
     };
   }
-  refreshTrStatus();
+  refreshTrStatus(); refreshAsrStatus(); updateSpChips(); langInd(); earInd();
+  VB.log('앱 준비됨');
 })();
 </script>
 </body>
 </html>
+<!-- END index v0.4.0 -->
