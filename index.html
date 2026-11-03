@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.4.3 | 2026-11-03 | 끊긴 말 이어 붙이기(조각 카드를 앞 카드에 붙여 한 문장으로 다시 번역), 한국어 번역 발표 말투(저는·여러분·~합니다), 기록에 들린 말 원본 보관
+  index v0.4.4 | 2026-11-03 | 받아쓰기 밀림 방지(쌓인 조각 한 번에), 귀 바꾸기 E(Whisper↔가벼운 모드), 번역기가 바꾼 자리표(Xa) 되돌림, 띄어 들린 자료 용어 붙이기, 따옴표·is로 끝난 문장 잘못 붙던 것 수정
+  v0.4.3 | 2026-11-03 | 끊긴 말 이어 붙이기(조각 카드를 앞 카드에 붙여 한 문장으로 다시 번역), 한국어 번역 발표 말투(저는·여러분·~합니다), 기록에 들린 말 원본 보관
   v0.4.2 | 2026-11-03 | Whisper 빨리 뜨게: 0.45초 쉼에서 자름, 쉼 없이 이어지면 6초쯤 가장 조용한 곳에서 자름(전 12초), 배경 소리 속 쉼도 찾음, base 모델 추가, 짧은 한국어 끼어들기 인식, 카드에 '말 끝→표시' 초 표시
   v0.4.1 | 2026-11-03 | 가벼운 모드: 긴 말을 끊을 때 인식기를 껐다 켜지 않음(그 사이 말이 사라지던 문제), 9어절·15단어쯤 쉼표·접속어에서 더 빨리 카드로. 시험 안내 보강
   v0.4.0 | 원본 보기(view-bench v0.3.0: PDF·PPTX·HTML 그대로) + 화자별 통역 카드(언어로 A·B 자동, 1·2·3 키로 바꾸기) + 자료 용어 엔진을 작동본(귀·번역·회의록)에 합침. 리모컨 F5/Esc/B 대응
@@ -12,7 +13,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.4.3</title>
+<title>발표 통역 자막 도우미 v0.4.4</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -147,7 +148,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.3 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.4.4 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -244,7 +245,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <ul class="keys">
 <li><b>리모컨(프레젠터)</b>: 다음/이전 버튼이 보내는 <kbd>PgDn</kbd> <kbd>PgUp</kbd>·<kbd>→</kbd> <kbd>←</kbd> 로 넘어갑니다. 슬라이드쇼 버튼(<kbd>F5</kbd>)은 무시(새로고침 방지), 화면 끄기 버튼(<kbd>B</kbd> <kbd>.</kbd>)은 슬라이드만 까맣게(통역 칸은 유지), <kbd>Esc</kbd> 는 <b>2초 안에 두 번</b> 눌러야 종료.</li>
 <li>다음 <kbd>→</kbd> <kbd>PgDn</kbd> <kbd>Space</kbd> <kbd>↓</kbd> · 이전 <kbd>←</kbd> <kbd>PgUp</kbd> <kbd>↑</kbd> · 처음/끝 <kbd>Home</kbd> <kbd>End</kbd> · 화면 오른쪽 터치=다음, 왼쪽 ⅓=이전</li>
-<li>화자 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> · 자동 <kbd>0</kbd> · 언어 전환(가벼운 모드) <kbd>L</kbd> · 방금 문장 중요 <kbd>M</kbd></li>
+<li>화자 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> · 자동 <kbd>0</kbd> · 언어 전환(가벼운 모드) <kbd>L</kbd> · 방금 문장 중요 <kbd>M</kbd> · <b>귀 바꾸기 <kbd>E</kbd></b> (Whisper ↔ 가벼운 모드: 우리 쪽이 한국어로 길게 발표할 때 가벼운 모드가 더 빠름)</li>
 <li><kbd>F</kbd> 전체화면 · <kbd>C</kbd> 통역 칸 숨김/보임 · <kbd>W</kbd> 칸 폭 · <kbd>+</kbd> <kbd>−</kbd> 통역 글자</li>
 <li>HTML 자료는 자료 안의 목차·버튼도 그대로 작동합니다(문서 안 링크는 스크롤, 인터넷 링크는 새 탭).</li>
 <li>기록은 말할 때마다 이 기기 브라우저에 자동 저장됩니다. 창이 꺼져도 다시 열면 이어서 할 수 있습니다.</li>
@@ -262,7 +263,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <iframe id="htmlFrame" title="HTML 발표자료" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox" hidden></iframe>
 <div id="stageMsg">슬라이드 없음 (통역 칸만 표시)</div>
 <div id="blackout" hidden></div>
-<div id="ctl"><span id="dot" title="마이크"></span><button id="bPrev">◀</button><span id="pageNo">-</span><button id="bNext">▶</button><button id="bSide">통역 칸</button><button id="bFull">전체화면</button><button id="bImp">★ 중요</button><button id="bEnd">■ 종료</button></div>
+<div id="ctl"><span id="dot" title="마이크"></span><button id="bPrev">◀</button><span id="pageNo">-</span><button id="bNext">▶</button><button id="bSide">통역 칸</button><button id="bFull">전체화면</button><button id="bEar" title="E: Whisper ↔ 가벼운 모드">귀 E</button><button id="bImp">★ 중요</button><button id="bEnd">■ 종료</button></div>
 </div>
 <aside id="side">
 <div id="topic"><span class="tag">지금 주제</span><span><span id="topicText">-</span><span id="topicTr"></span></span></div>
@@ -298,7 +299,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.4.3',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.4.4',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -416,6 +417,7 @@ VB.key=function(key,code,fromFrame,shift){
   if(k==='0'){H('speaker','');return true;}
   if(k==='l'){H('lang');return true;}
   if(k==='m'){H('imp');return true;}
+  if(k==='e'){H('ear');return true;}
   return false;
 };
 document.addEventListener('keydown',function(e){
@@ -1069,7 +1071,7 @@ const Terms={
       this.autoPairs.push([k, romanize(m[1])+' '+PLACE_SUF[m[2]]]); stems.add(m[1]);
     }
     for(const st of stems) if(!paired.has(st)) this.autoPairs.push([st, romanize(st)]);
-    this._list=null; render();
+    this._list=null; this._sj=null; render();
   },
   nearest(core){
     const j=jamo(core), max=Math.floor(j.length*0.28); if(max<1) return null;
@@ -1135,9 +1137,18 @@ const Terms={
   },
   correct(text,lang){
     if(VB.opt&&VB.opt.autoFix===false) return text;
-    if(lang==='ko' && this.vocab.size) return this.fuzzy(text);
+    if(lang==='ko' && this.vocab.size) return this.fuzzy(this.spaceJoin(text));
     if(lang==='en' && this.vocabEn.size) return this.fuzzyEn(text);
     return text;
+  },
+  /* v0.4.4: 띄어 들린 자료 용어 붙이기 (그림책도 시일까 → 그림책도시일까). 뒤에 조사·이다 꼴이 올 때만 */
+  spaceJoin(text){
+    if(!/\s/.test(text)) return text;
+    if(!this._sj){ this._sj=[...this.vocab.values()].filter(v=>v.fz && !v.form.includes(' ') && v.form.length>=4).sort((a,b)=>b.form.length-a.form.length).slice(0,150)
+      .map(v=>[new RegExp('(^|[^가-힣])('+[...v.form].map(escRe).join('\\s*')+')(?=$|[^가-힣]|은|는|이|일|입|인|가|을|를|의|에|와|과|도|로|라|란|만)','g'),v.form]); }
+    let s=text;
+    for(const [re,form] of this._sj){ re.lastIndex=0; s=s.replace(re,(m,a,b)=>/\s/.test(b)?a+form:m); }
+    return s;
   },
   /* 번역 전에 자료 속 용어를 XA·XB…로 바꿔 두었다가, 번역 뒤 자료의 표기로 되돌림 */
   protect(text,lang){
@@ -1155,9 +1166,9 @@ const Terms={
     }
     return {q:s,map};
   },
-  restore(out,map,tgt){
+  restore(out,map,tgt){   // v0.4.4: 번역기가 XA를 Xa·X A로 바꿔도 되돌림
     let s=out;
-    for(const [ph,to] of map) s=s.replace(new RegExp(ph+'(은|는|이|가|을|를|과|와)?','g'),(m,p)=>to+(p&&tgt==='ko'?fixP(to,p):(p||'')));
+    for(const [ph,to] of map) s=s.replace(new RegExp('\\b'+ph[0]+'\\s?'+ph[1]+'(?![a-z])(은|는|이|가|을|를|과|와)?','gi'),(m,p)=>to+(p&&tgt==='ko'?fixP(to,p):(p||'')));
     return s;
   },
   list(){
@@ -1730,7 +1741,10 @@ const Whisper = {
   async pump(){
     if(this.busy) return; this.busy=true;
     while(this.queue.length){
-      const q=this.queue.shift(), a=q.a, sec=a.length/16000;
+      let q=this.queue.shift();
+      // v0.4.4: 받아쓰기가 밀렸으면 쌓인 조각을 한 번에 받아씀 (Whisper는 한 번에 30초 창을 처리하므로 시간이 거의 같음 → 밀림이 쌓이지 않음)
+      while(this.queue.length && (q.a.length+this.queue[0].a.length)/16000<=14){ const n=this.queue.shift(), m=new Float32Array(q.a.length+4800+n.a.length); m.set(q.a,0); m.set(n.a,q.a.length+4800); q={a:m,end:n.end,merged:(q.merged||1)+1}; }
+      const a=q.a, sec=a.length/16000;
       this.handlers.busy?.(true, this.queue.length);
       try{
         if(this.state!=='ready') await this.load();
@@ -1913,14 +1927,14 @@ function commitSentence(raw,lang,r){
   if(S.translate) translateEntry(e);
 }
 /* ---------- v0.4.3 끊긴 말 이어 붙이기: 앞 카드가 문장 중간에서 끊겼으면 새 카드를 만들지 않고 앞 카드에 붙여 다시 번역 ---------- */
-const EN_TAIL=/^(to|and|but|or|of|the|a|an|that|with|for|in|on|at|from|by|because|so|if|when|which|who|whose|is|are|was|were|be|been|my|your|our|their|his|her|its|than|as|into|about|i|we|you|they|not|just|very|more|most)$/;
+const EN_TAIL=/^(to|and|but|or|of|the|a|an|that|with|for|in|on|at|from|by|because|so|if|when|which|who|whose|my|your|our|their|his|her|its|than|as|into|about|i|we|you|they|not|just|very|more|most)$/;
 const KO_DONE=/(습니다|습니까|니다|니까|세요|에요|예요|어요|아요|해요|지요|까요|네요|군요|래요|게요|거든요|잖아요|죠|다|요)$/;
 function shouldJoin(prev,n,lang){
   if(!prev || prev.lang!==lang || prev.sp!==spFor(lang) || !prev.t1) return false;
   if(Date.now()-prev.t1>6000) return false;                                  // 6초 넘게 쉬었으면 새 말
   const pw=words(prev.src).length, nw=words(n).length;
   if(pw+nw>(lang==='ko'?28:40)) return false;                                // 너무 길어지면 새 카드
-  const p=prev.src.trim(); n=n.trim();
+  const p=prev.src.trim().replace(/["”’']+$/,''); n=n.trim();
   if(lang==='en'){
     if(/^[a-z]/.test(n)) return true;                                        // 소문자로 시작 = 앞 말에 이어짐 (to make. / is doing more harm…)
     if(/[?!]$/.test(p)) return false;
@@ -2117,7 +2131,24 @@ function switchLang(){
   Speech.start(S.lang); if(S.translate) Tr.ensure(); renderLive(); langInd(); updateSpChips(); saveSoon();
   toast(`발표 언어: ${LANGS[S.lang].name} → ${LANGS[other(S.lang)].name} 번역 · 화자 ${spFor(S.lang)}`,2500);
 }
-VB.H={end:endPresent,speaker:setSpeaker,lang:switchLang,imp:markImportant};
+/* v0.4.4 귀 바꾸기 (E): Whisper ↔ 가벼운 모드. 우리 쪽 한국어 발표처럼 한 언어로 길게 말할 때는 가벼운 모드가 말하는 중에도 글자를 띄워 빠름 */
+function switchEar(){
+  if(!S.presenting) return;
+  if(S.asr==='whisper'){
+    if(!Speech.supported){ toast('이 브라우저에는 가벼운 모드(내장 음성인식)가 없습니다',2500); return; }
+    if(Whisper.running) Whisper.stopMic();
+    S.asr='web'; S.lang=S.lastLang||'ko'; S.interim=null; utt={skip:0};
+    Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang);
+    toast(`귀: 가벼운 모드 · ${LANGS[S.lang].name} 고정 (말하는 중에도 표시) · ⚠ 음성이 브라우저 회사 서버로 전송 · L 언어, E 다시 Whisper`,4500);
+  }else{
+    Speech.stop(); S.asr='whisper'; S.interim=null; Whisper.prepare(); startWhisperEar();
+    toast('귀: Whisper · 언어 자동 · 음성은 기기 안에서만',3000);
+  }
+  document.querySelectorAll('input[name=asr]').forEach(r=>r.checked=(r.value===S.asr)); refreshAsrStatus();
+  langInd(); earInd(); renderLive(); saveSoon();
+}
+VB.H={end:endPresent,speaker:setSpeaker,lang:switchLang,imp:markImportant,ear:switchEar};
+$('bEar').addEventListener('click',switchEar);
 $('bEnd').addEventListener('click',endPresent);
 $('bImp').addEventListener('click',markImportant);
 $('btnStart').addEventListener('click',startPresent);
@@ -2419,4 +2450,4 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
 </script>
 </body>
 </html>
-<!-- END index v0.4.3 -->
+<!-- END index v0.4.4 -->
