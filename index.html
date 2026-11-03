@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.5.0 | 2026-11-03 | 진단에 크롬 번역 상태(언어팩 available/downloadable 등)·내려받기 % 표시, 발표 중 내려받기 진행 안내
+  index v0.5.1 | 2026-11-03 | Whisper 말하는 중 미리 보기(그래픽 가속일 때, 한·영 같은 조건), 그래픽 가속이면 쉼 0.42초·최대 6초, 완결 문장(…that. / …you.) 잘못 붙던 것 수정, 파일 이름도 용어로
+  v0.5.0 | 2026-11-03 | 진단에 크롬 번역 상태(언어팩 available/downloadable 등)·내려받기 % 표시, 발표 중 내려받기 진행 안내
   v0.4.9 | 2026-11-03 | 150MB 넘는 PPTX는 파일 전체를 메모리에 올리지 않고 큰 미디어를 뺀 가벼운 사본으로 엶(1.6GB PPTX에서 번역기가 멈추던 원인)
   v0.4.8 | 2026-11-03 | 번역기를 준비 화면에서 미리 만듦(첫 클릭), 응답 없으면 20초 뒤 다시 시도, 100MB 넘는 자료는 이어서 하기용 보관 생략(메모리 절약)
   v0.4.7 | 2026-11-03 | 크롬 번역기가 처음에 안 만들어지면 그대로 멈추던 문제: 문장마다·클릭마다 다시 시도, 준비되면 실패한 문장 다시 번역, 실패 이유 표시
@@ -19,7 +20,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.5.0</title>
+<title>발표 통역 자막 도우미 v0.5.1</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -154,7 +155,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.5.0 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.5.1 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -197,6 +198,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="langRow"><div class="sb" style="margin-bottom:4px">가벼운 모드의 발표 언어 — <b>지금 말하는 사람의 언어와 꼭 맞춰야 합니다</b>(다르면 엉뚱한 글이 나옴). 발표 중 <kbd>L</kbd> 로 바꿈</div>
 <div class="radio"><label><input type="radio" name="lang" value="ko" checked> 한국어로 발표 → 영어 번역</label><label><input type="radio" name="lang" value="en"> 영어로 발표 → 한국어 번역</label></div></div>
 <div id="asrStatus" class="status"></div>
+<label class="check"><input type="checkbox" id="optPreview" checked> 말하는 중에도 미리 보기 — Whisper가 1.2초마다 미리 받아써 흐린 카드로 보여 주고, 말이 끝나면 확정 (그래픽 가속일 때만 작동)</label>
 <label class="check"><input type="checkbox" id="optJoin" checked> 끊긴 말 이어 붙이기 — 앞 카드가 문장 중간에서 끊겼으면(소문자·접속어로 이어짐, ~다·~요로 안 끝남) 새 카드 대신 앞 카드에 붙여 한 문장으로 다시 번역</label>
 </section>
 
@@ -305,7 +307,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.5.0',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.5.1',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1140,7 +1142,7 @@ const Terms={
     }
   },
   incEn(form,kind,w=1){ const k=enKey(form); if(!k) return; const v=this.vocabEn.get(k); if(v) v.n+=w; else this.vocabEn.set(k,{form,n:w,kind}); return this.vocabEn.get(k); },
-  texts(){ const t=this.sources.map(x=>x.text); const m=(VB.S&&VB.S.texts||[]).join('\n'); if(m.trim()) t.unshift(m); return t; },
+  texts(){ const t=this.sources.map(x=>x.text); const m=(VB.S&&VB.S.texts||[]).join('\n'); if(m.trim()) t.unshift(m); const nm=(VB.S&&VB.S.name||'').replace(/\.[a-z0-9]+$/i,'').replace(/[_\[\]()]+/g,' '); if(nm.trim()) t.push(nm+'\n'+nm); return t; },   // v0.5.1: 파일 이름(예: 경제총조사_표준교육안)도 용어로
   rebuild(){
     this.vocab=new Map(); this.vocabEn=new Map(); this._lowerSeen=new Set();
     const pm=new Map();
@@ -1368,7 +1370,7 @@ let saveTimer=null;
 function saveSoon(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,400); }
 function saveNow(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify({
-    v:2, savedAt:Date.now(), lang:S.lang, translate:S.translate, trEngine:S.trEngine, autoFix:S.autoFix, keepEn:S.keepEn, asr:S.asr, whModel:S.whModel, join:S.join, polite:S.polite, yeoreobun:S.yeoreobun,
+    v:2, savedAt:Date.now(), lang:S.lang, translate:S.translate, trEngine:S.trEngine, autoFix:S.autoFix, keepEn:S.keepEn, asr:S.asr, whModel:S.whModel, join:S.join, preview:S.preview, polite:S.polite, yeoreobun:S.yeoreobun,
     meta:S.meta, entries:S.entries, aiSummary:S.aiSummary, speakers:S.speakers, deckName:D.name||'', page:D.cur||0
   })); }catch(e){ console.warn('자동 저장 실패',e); }
 }
@@ -1811,23 +1813,31 @@ const Whisper = {
       v.floor = v.floor*0.97 + Math.min(rms,0.05)*0.03;
       v.pre.push(fr); if(v.pre.length>10) v.pre.shift();                       // 말 시작 전 0.3초
       v.voiced = rms>th ? v.voiced+1 : 0;
-      if(v.voiced>=3){ v.speaking=true; v.buf=v.pre.slice(); v.pre=[]; v.silent=0; v.loud=0; this.handlers.listening?.(true); }
+      if(v.voiced>=3){ v.speaking=true; v.buf=v.pre.slice(); v.pre=[]; v.silent=0; v.loud=0; v.lastPv=0; this.handlers.listening?.(true); }
     } else {
       v.buf.push(fr); v.rms.push(rms);
       v.lvl = rms>v.lvl ? v.lvl*0.8+rms*0.2 : v.lvl*0.995+rms*0.005;          // 말소리 크기(천천히 따라감)
       if(rms > Math.max(th, v.lvl*0.3)){ v.silent=0; v.loud++; } else v.silent++;   // 배경 소리가 있어도 말소리보다 확 작아지면 '쉼'
-      const sec=v.buf.length*0.03;
-      if(v.silent>=18 && v.buf.length>=50) this.endSeg();                      // v0.4.6: 0.55초 쉬면 자름, 단 1.5초 미만 조각은 다음 말과 함께 (짧은 조각은 Whisper가 잘못 듣기 쉬움)
+      const sec=v.buf.length*0.03, gpu=this.device==='webgpu';
+      const sil=gpu?14:18, maxSec=gpu?6:this.maxSec;                         // v0.5.1: 그래픽 가속이면 0.42초 쉼·최대 6초(빠름), CPU면 0.55초·8초
+      if(v.silent>=sil && v.buf.length>=50) this.endSeg();                     // 1.5초 미만 조각은 다음 말과 함께 (짧은 조각은 Whisper가 잘못 듣기 쉬움)
       else if(v.silent>=40) this.endSeg();                                     // 짧은 말이라도 1.2초 조용하면 보냄
-      else if(sec>=this.maxSec) this.cutAtValley();                            // 쉬지 않고 이어지면 6초쯤에서 가장 조용한 곳을 골라 자름 (전 12초)
+      else if(sec>=maxSec) this.cutAtValley();                                 // 쉬지 않고 이어지면 가장 조용한 곳을 골라 자름
+      else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=40) this.previewNow();   // v0.5.1: 말하는 중 1.2초마다 미리 받아쓰기
     }
+  },
+  previewNow(){
+    const v=this.vad, fr=v.buf; v.lastPv=fr.length;
+    const a=new Float32Array(fr.length*480); fr.forEach((f,i)=>a.set(f,i*480)); const sec=a.length/16000;
+    this.pv=true;
+    this.transcribe(a,this.prevLang).then(r=>{ this.pv=false; if(this.vad.speaking && !this.busy && !whBad(r.text,sec)) this.handlers.preview?.(r.text,r.lang); }).catch(()=>{ this.pv=false; });
   },
   cutAtValley(){
     const v=this.vad, n=v.buf.length, from=Math.max(Math.floor(n*0.5), n-67);
     let best=n-2, bv=1e9;
     for(let i=from;i<n-3;i++){ const e=v.rms[i]+v.rms[i+1]+v.rms[i+2]; if(e<bv){ bv=e; best=i+1; } }
     const head=v.buf.slice(0,best);
-    v.buf=v.buf.slice(best); v.rms=v.rms.slice(best); v.loud=v.buf.length; v.silent=0;
+    v.buf=v.buf.slice(best); v.rms=v.rms.slice(best); v.loud=v.buf.length; v.silent=0; v.lastPv=0;
     this.emit(head);
   },
   endSeg(){
@@ -2030,7 +2040,7 @@ function commitSentence(raw,lang,r){
   if(S.translate) translateEntry(e);
 }
 /* ---------- v0.4.3 끊긴 말 이어 붙이기: 앞 카드가 문장 중간에서 끊겼으면 새 카드를 만들지 않고 앞 카드에 붙여 다시 번역 ---------- */
-const EN_TAIL=/^(to|and|but|or|of|the|a|an|that|with|for|in|on|at|from|by|because|so|if|when|which|who|whose|my|your|our|their|his|her|its|than|as|into|about|i|we|you|they|not|just|very|more|most)$/;
+const EN_TAIL=/^(to|and|but|or|of|the|a|an|with|for|in|on|at|from|by|because|so|if|when|which|who|whose|my|your|our|their|his|her|its|than|as|into|about|not|just|very|more|most)$/;   // v0.5.1: that·you·we 등으로 끝난 완결 문장(Think about that.)은 붙이지 않음
 const KO_DONE=/(습니다|습니까|니다|니까|세요|에요|예요|어요|아요|해요|지요|까요|네요|군요|래요|게요|거든요|잖아요|죠|다|요)$/;
 function shouldJoin(prev,n,lang){
   if(!prev || prev.lang!==lang || prev.sp!==spFor(lang) || !prev.t1) return false;
@@ -2179,7 +2189,7 @@ function readSetup(){
   S.trEngine=document.querySelector('input[name=tre]:checked').value;
   S.asr=document.querySelector('input[name=asr]:checked').value;
   S.whModel=$('whModel').value;
-  S.join=$('optJoin').checked; S.polite=$('optPolite').checked; S.yeoreobun=$('optYeo').checked;
+  S.join=$('optJoin').checked; S.preview=$('optPreview').checked; S.polite=$('optPolite').checked; S.yeoreobun=$('optYeo').checked;
   S.autoFix=$('optAutoFix').checked; S.keepEn=$('optKeepEn').checked;
   S.speakers={A:$('spA').value.trim(),B:$('spB').value.trim(),C:$('spC').value.trim()};
   S.meta={date:$('mDate').value,place:$('mPlace').value.trim(),org:$('mOrg').value.trim(),people:$('mPeople').value.trim()};
@@ -2205,7 +2215,13 @@ async function startWhisperEar(){
     await Whisper.startMic({
       state:setDot,
       listening(on){ if(!S.presenting) return; if(on) S.interim={src:'🎙 듣는 중…',lang:S.lastLang||S.lang}; else if(S.interim&&S.interim.src==='🎙 듣는 중…') S.interim=Whisper.busy?{src:'⏳ 받아쓰는 중…',lang:S.lastLang||S.lang}:null; renderLive(); },
-      busy(on){ if(!S.presenting) return; if(on&&!(S.interim&&S.interim.src==='🎙 듣는 중…')) S.interim={src:'⏳ 받아쓰는 중…',lang:S.lastLang||S.lang}; if(!on&&S.interim&&S.interim.src==='⏳ 받아쓰는 중…') S.interim=null; renderLive(); },
+      busy(on){ if(!S.presenting) return; if(on&&!S.interim) S.interim={src:'⏳ 받아쓰는 중…',lang:S.lastLang||S.lang}; if(!on&&S.interim&&(S.interim.src==='⏳ 받아쓰는 중…'||S.interim.pv)) S.interim=null; renderLive(); },
+      preview(text,lang){                                                     // v0.5.1: 말하는 중 미리 보기 (확정 전, 흐린 카드)
+        if(!S.presenting||S.preview===false) return;
+        const src=Terms.correct(text,lang), keep=S.interim&&S.interim.pv&&S.interim.lang===lang?S.interim.tgt:'';
+        S.interim={src:src+' …',lang,tgt:keep,pv:true,note:'미리 보기 — 말이 끝나면 확정됩니다'}; renderLive();
+        if(S.translate && Tr.ready(lang,other(lang))) trTerms(src,lang,other(lang)).then(out=>{ if(out && S.interim && S.interim.src===src+' …'){ S.interim.tgt=other(lang)==='ko'?politeKo(out):out; renderLive(); } }).catch(()=>{});
+      },
       text:onWhisperText,
       error(e){ toast('Whisper 오류: '+e.message,5000); }
     });
@@ -2506,7 +2522,7 @@ function syncSetupOptions(){
   q('lang',S.lang); q('asr',S.asr||'web'); q('tre',S.trEngine||'auto');
   $('optTranslate').checked=S.translate; $('whModel').value=S.whModel||'small';
   $('optAutoFix').checked=S.autoFix!==false; $('optKeepEn').checked=S.keepEn!==false;
-  $('optJoin').checked=S.join!==false; $('optPolite').checked=S.polite!==false; $('optYeo').checked=S.yeoreobun!==false;
+  $('optJoin').checked=S.join!==false; $('optPreview').checked=S.preview!==false; $('optPolite').checked=S.polite!==false; $('optYeo').checked=S.yeoreobun!==false;
   $('spA').value=S.speakers.A||''; $('spB').value=S.speakers.B||''; $('spC').value=S.speakers.C||'';
   refreshAsrStatus(); refreshTrStatus();
 }
@@ -2516,7 +2532,7 @@ $('whModel').onchange=()=>{ S.whModel=$('whModel').value; refreshAsrStatus(); sa
 $('btnWhLoad').onclick=()=>{ readSetup(); Whisper.load(S.whModel).catch(()=>{}); };
 $('btnGoMinutes').onclick=()=>{ readSetup(); openMinutes(); };
 $('optTranslate').onchange=()=>{ S.translate=$('optTranslate').checked; saveSoon(); };
-['optJoin','optPolite','optYeo'].forEach(id=>$(id).addEventListener('change',()=>{ readSetup(); saveSoon(); }));
+['optJoin','optPolite','optYeo','optPreview'].forEach(id=>$(id).addEventListener('change',()=>{ readSetup(); saveSoon(); }));
 $('optAutoFix').onchange=()=>{ S.autoFix=$('optAutoFix').checked; $('fixIn').dispatchEvent(new Event('input')); saveSoon(); };
 $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispatchEvent(new Event('input')); saveSoon(); };
 ['spA','spB','spC'].forEach(id=>$(id).addEventListener('input',()=>{ S.speakers={A:$('spA').value.trim(),B:$('spB').value.trim(),C:$('spC').value.trim()}; updateSpChips(); saveSoon(); }));
@@ -2530,7 +2546,7 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
   $('mDate').value=nowLocal(); readSetup();
   const saved=loadSaved();
   if(saved){
-    Object.assign(S,{join:saved.join!==false,polite:saved.polite!==false,yeoreobun:saved.yeoreobun!==false,autoFix:saved.autoFix!==false,keepEn:saved.keepEn!==false,speakers:saved.speakers||S.speakers,asr:saved.asr||'web',whModel:saved.whModel||'small',trEngine:saved.trEngine||'auto',lang:saved.lang||'ko',translate:saved.translate!==false});
+    Object.assign(S,{preview:saved.preview!==false,join:saved.join!==false,polite:saved.polite!==false,yeoreobun:saved.yeoreobun!==false,autoFix:saved.autoFix!==false,keepEn:saved.keepEn!==false,speakers:saved.speakers||S.speakers,asr:saved.asr||'web',whModel:saved.whModel||'small',trEngine:saved.trEngine||'auto',lang:saved.lang||'ko',translate:saved.translate!==false});
     syncSetupOptions(); Terms.rebuild();
   }
   if(saved && (saved.entries?.length || saved.deckName)){
@@ -2559,4 +2575,4 @@ $('optKeepEn').onchange=()=>{ S.keepEn=$('optKeepEn').checked; $('fixIn').dispat
 </script>
 </body>
 </html>
-<!-- END index v0.5.0 -->
+<!-- END index v0.5.1 -->
