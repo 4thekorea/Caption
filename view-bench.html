@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  view-bench v0.2.1 | 2026-11-03 | HTML 안 나옴 수정: 격리 틀에서 막힌 저장소(localStorage·sessionStorage)·쿠키·주소 기록을 메모리로 대신, 자료 안 오류·빈 화면을 바깥에 알림
+  view-bench v0.2.2 | 2026-11-03 | HTML 목차(#) 클릭 시 발표 끊김 수정: 문서 안 링크는 스크롤, 인터넷 링크는 새 탭, 틀이 다른 페이지로 바뀌면 자료로 되돌림, 통역기가 틀 안에서 열리면 실행 안 함
+  v0.2.1 | HTML 안 나옴 수정: 격리 틀에서 막힌 저장소(localStorage·sessionStorage)·쿠키·주소 기록을 메모리로 대신, 자료 안 오류·빈 화면을 바깥에 알림
   v0.2.0 | v0.1.0이 590줄에서 잘려 작동하지 않던 것을 완성: HTML 열기·넘김 전달, 파일 올리기·끌어다 놓기, 화자별 통역 칸(v0.2.0 예시 재생 그대로), 시험 기록(JSON)
   원본 표시: PDF = pdf.js 3.11.174 쪽마다 그림(index (1)과 같은 방식) · PPTX = @aiden0z/pptx-renderer 1.4.0 + 높이 맞춤 · HTML = 격리 틀(iframe sandbox, 같은 출처 권한 없음) + 넘김 키 전달
   시험 기록: 형식·크기·장 수·그리기 시간·눈 비교·오류만(파일 이름·내용은 기록 안 함). 배포 중인 index.html은 건드리지 않음. 마이크·모델 미연결
@@ -9,7 +10,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표통역기 — 원본 보기 시험 (view-bench v0.2.1)</title>
+<title>발표통역기 — 원본 보기 시험 (view-bench v0.2.2)</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -97,7 +98,7 @@ body.noside #present{grid-template-rows:minmax(0,1fr)}
 <noscript><div style="padding:12px;background:#e0596a;color:#fff">이 화면은 JavaScript가 필요합니다. 브라우저 설정에서 JavaScript를 켜 주세요.</div></noscript>
 <div id="errbar"></div>
 <main id="setup">
-<div class="row"><h1>발표통역기 · 원본 보기 시험</h1><span class="sp"></span><span class="chip">view-bench v0.2.1 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중… (이 글자가 안 바뀌면 스크립트가 막힌 것)</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표통역기 · 원본 보기 시험</h1><span class="sp"></span><span class="chip">view-bench v0.2.2 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중… (이 글자가 안 바뀌면 스크립트가 막힌 것)</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">이 페이지는 <b>원본 그대로 보기</b>와 <b>오른쪽 화자별 통역 칸</b>의 모양만 시험합니다. 마이크·번역은 쓰지 않습니다(오른쪽은 가명 예시 재생). 배포 중인 index.html과는 별개 파일입니다.</p>
 <section class="box">
 <h2>① 발표자료 올리기</h2>
@@ -130,9 +131,9 @@ body.noside #present{grid-template-rows:minmax(0,1fr)}
 <div id="stage">
 <img id="pdfImg" alt="" hidden>
 <div id="pptxBox" hidden></div>
-<iframe id="htmlFrame" title="HTML 발표자료" sandbox="allow-scripts allow-forms allow-modals allow-popups" hidden></iframe>
+<iframe id="htmlFrame" title="HTML 발표자료" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox" hidden></iframe>
 <div id="stageMsg">슬라이드 없음 (통역 칸만 표시)</div>
-<div id="corner">view-bench v0.2.1 · 예시 재생(모델 미연결) · 마이크 안 씀</div>
+<div id="corner">view-bench v0.2.2 · 예시 재생(모델 미연결) · 마이크 안 씀</div>
 <div id="ctl"><button id="bPrev">◀</button><span id="pageNo">-</span><button id="bNext">▶</button><button id="bSide">통역 칸</button><button id="bFull">전체화면</button><button id="bBack">☰ 준비 화면</button></div>
 </div>
 <aside id="side">
@@ -145,7 +146,7 @@ body.noside #present{grid-template-rows:minmax(0,1fr)}
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.2.1',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false};
+var VB={v:'0.2.2',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -153,6 +154,7 @@ VB.log=function(m){VB.logs.push(VB.tm()+' '+m);if(VB.logs.length>80)VB.logs.shif
 VB.err=function(m){VB.errors.push(VB.tm()+' '+m);if(VB.errors.length>30)VB.errors.shift();var b=VB.$('errbar');if(b){b.textContent='오류: '+m+' (화면 캡처해 주세요 · 눌러서 닫기)';b.className='show';}};
 window.addEventListener('error',function(e){VB.err((e.message||'오류')+' ['+String(e.filename||'').split('/').pop()+':'+(e.lineno||0)+']');});
 window.addEventListener('unhandledrejection',function(e){var r=e.reason;VB.err('처리 안 된 오류: '+(r&&r.message?r.message:String(r)));});
+if(window.self!==window.top){try{document.documentElement.innerHTML='<body style="background:#fff;font:16px sans-serif;padding:30px">이 화면은 발표자료 칸 안에서 열리지 않습니다.</body>';}catch(e){}throw new Error('틀 안에서는 실행 안 함');}
 (function(){var c=VB.$('jsChip');if(c){c.textContent='JS 작동 ✓';c.className='chip ok';}VB.log('시작 view-bench v'+VB.v);})();
 </script>
 <script>
@@ -253,6 +255,8 @@ document.addEventListener('keydown',function(e){
 window.addEventListener('message',function(e){
   var f=$('htmlFrame');if(!f||e.source!==f.contentWindow)return;
   var d=e.data;if(!d)return;
+  if(d.vb==='ready'){if(VB.frameReadyMsg)VB.frameReadyMsg();return;}
+  if(d.vb==='link'){VB.log('자료 안 링크를 새 탭으로 엶');return;}
   if(d.vb==='err'){if(VB.R.html){VB.R.html.frameErrors=(VB.R.html.frameErrors||0)+1;(VB.R.html.frameErrMsgs=VB.R.html.frameErrMsgs||[]).length<5&&VB.R.html.frameErrMsgs.push(d.msg);}VB.log('HTML 자료 안 오류: '+d.msg);return;}
   if(d.vb==='stat'){if(VB.R.html){VB.R.html.visibleChars=d.chars;VB.R.html.imgs=d.imgs;VB.R.html.canvas=d.canvas;}
     if(!d.chars&&!d.imgs&&!d.canvas)VB.err('HTML 자료가 비어 보입니다'+((VB.R.html&&VB.R.html.frameErrMsgs)?' — 자료 안 오류: '+VB.R.html.frameErrMsgs[0]:'')+' · [진단 보기]를 캡처해 주세요');
@@ -538,6 +542,23 @@ function bridgeFn(){
   try{document.cookie;}catch(x){var ck='';try{Object.defineProperty(document,'cookie',{get:function(){return ck;},set:function(v){ck=String(v).split(';')[0];},configurable:true});}catch(y){}}
   try{var H=window.history;['pushState','replaceState'].forEach(function(n){var f=H[n];H[n]=function(){try{return f.apply(H,arguments);}catch(x){}};});}catch(x){}
   function post(o){try{window.parent.postMessage(o,'*');}catch(x){}}
+  post({vb:'ready'});
+  /* 링크: 문서 안(#) 링크는 그 자리로 스크롤, 인터넷 링크는 새 탭, 다른 파일 링크는 막음 (틀 안 화면이 바뀌어 발표가 끊기지 않게) */
+  document.addEventListener('click',function(e){
+    var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a||e.defaultPrevented)return;
+    var h=a.getAttribute('href')||'';
+    if(h.charAt(0)==='#'){
+      e.preventDefault();var id='';try{id=decodeURIComponent(h.slice(1));}catch(x){id=h.slice(1);}
+      var t=id?(document.getElementById(id)||document.getElementsByName(id)[0]):null;
+      if(t)t.scrollIntoView({behavior:'smooth',block:'start'});else if(!id)window.scrollTo(0,0);
+      return;
+    }
+    if(/^javascript:/i.test(h))return;
+    e.preventDefault();
+    if(/^(https?:|mailto:|tel:)/i.test(h)){try{window.open(a.href,'_blank','noopener');}catch(x){}post({vb:'link',url:h.slice(0,80)});return;}
+    post({vb:'err',msg:'자료 안의 다른 파일 링크는 열 수 없습니다: '+h.slice(0,60)});
+  },false);
+  document.addEventListener('submit',function(e){e.preventDefault();},true);
   window.addEventListener('error',function(e){post({vb:'err',msg:String(e.message||'오류').slice(0,200)});});
   window.addEventListener('unhandledrejection',function(e){var r=e.reason;post({vb:'err',msg:String(r&&r.message?r.message:r).slice(0,200)});});
   window.addEventListener('load',function(){setTimeout(function(){var b=document.body;post({vb:'stat',chars:b?(b.innerText||'').replace(/\s+/g,'').length:0,imgs:document.images.length,canvas:document.getElementsByTagName('canvas').length});},1500);});
@@ -617,10 +638,21 @@ function loadHtml(text,label){
   show(0);
   VB.log('HTML 준비('+label+')');
 }
-function htmlStart(){
-  if(S.type!=='html'||S.frameReady)return;
-  var t0=now();
-  frame.onload=function(){S.frameReady=true;if(R.html)R.html.loadMs=ms(t0);try{frame.focus();}catch(e){}};
+/* 틀이 우리 자료를 띄웠는지 '준비됨' 신호로 확인. 신호 없이 다른 페이지가 열리면(링크·양식 등) 자료로 되돌림 */
+var gotReady=false,restores=0;
+VB.frameReadyMsg=function(){gotReady=true;};
+function htmlStart(force){
+  if(S.type!=='html'||(S.frameReady&&!force))return;
+  var t0=now();gotReady=false;S.frameReady=false;
+  frame.onload=function(){
+    setTimeout(function(){
+      if(S.type!=='html')return;
+      if(gotReady){gotReady=false;S.frameReady=true;if(R.html&&R.html.loadMs==null)R.html.loadMs=ms(t0);if(VB.inPresent){try{frame.focus();}catch(e){}}return;}
+      S.frameReady=false;
+      if(restores<5){restores++;if(R.html)R.html.restores=restores;VB.log('틀 안 화면이 다른 페이지로 바뀌어 자료로 되돌림');frame.srcdoc=inject(S.html);}
+      else VB.err('HTML 자료 화면을 되돌리지 못했습니다. 준비 화면에서 다시 올려 주세요');
+    },300);
+  };
   frame.srcdoc=inject(S.html);
 }
 /* --- PPTX: 높이까지 맞추기(렌더러는 폭에만 맞춤) --- */
@@ -643,7 +675,7 @@ VB.nav=function(d){
   S.cur=k;show(k);
 };
 VB.onPresent=function(){
-  if(S.type==='html')htmlStart();
+  if(S.type==='html'){restores=0;htmlStart();}
   show(S.cur);
   if(S.type==='pptx')setTimeout(pptxFit,50);
 };
@@ -835,4 +867,4 @@ VB.log('S4 시험 기록 연결됨');
 </script>
 </body>
 </html>
-<!-- END view-bench v0.2.1 -->
+<!-- END view-bench v0.2.2 -->
