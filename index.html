@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.6.3 | 2026-11-03 | 미리 보기가 거의 안 나오던 문제(받아쓰기 2.5초 넘으면 쉬던 조건) 수정, 자동 귀가 구글로 안 넘어가던 문제(배경음 속 한국어 판별 약함): 판별 기준 낮추고 두 번 연속이면 전환, 회의록에 받아쓰기 시간·언어판별 값 기록
+  index v0.6.4 | 2026-11-03 | v0.6.3의 미리 보기 변경은 되돌림(사용자 판단: 엉망). 자동 귀: 구글로 넘어간 뒤 구글 결과가 없으면 그 한국어 조각은 Whisper가 받아쓰고(말 버림 방지), 두 번 연속이면 구글 중단. 회의록에 구글 시작·결과 횟수
+  v0.6.3 | 2026-11-03 | (되돌림) 미리 보기가 거의 안 나오던 문제(받아쓰기 2.5초 넘으면 쉬던 조건) 수정, 자동 귀가 구글로 안 넘어가던 문제(배경음 속 한국어 판별 약함): 판별 기준 낮추고 두 번 연속이면 전환, 회의록에 받아쓰기 시간·언어판별 값 기록
   v0.6.2 | 2026-11-03 | 한국어에서 힌트 낱말을 그대로 지어내던 문제(원주시, 단계동…): 힌트는 영어에만·40토큰까지, 힌트 낱말이 줄줄이 나오면 힌트 없이 다시. 회의록에 문장마다 받아쓴 곳(Whisper/구글)·귀 방식·구글 오류 기록, *applause* 제거
   v0.6.1 | 2026-11-03 | 'The'·'A'·'#' 빈말(번역 '…하면할수록')·폭주 차단: 받아쓰기 글자 수 상한, 빈말 버림·앞뒤 떼기, 힌트 결과가 빈말이면 힌트 없이 다시. 자동 귀 전환 기준 강화(한국어 중 영어 오판으로 Whisper로 넘어가던 문제)
   v0.6.0 | 2026-11-03 | 자동 귀: 한국어가 들리면 구글 음성인식으로, 영어가 들리면 Whisper로 저절로 전환(E 불필요). 구글 모드에서도 Whisper가 1.2초마다 언어만 확인. 상황 버튼 정리
@@ -26,7 +27,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.6.3</title>
+<title>발표 통역 자막 도우미 v0.6.4</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -161,7 +162,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.6.3 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.6.4 · 2026-11-03</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -317,7 +318,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.6.3',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.6.4',d:'2026-11-03',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1851,7 +1852,7 @@ const Whisper = {
       else if(v.silent>=40) this.endSeg();                                     // 짧은 말이라도 1.2초 조용하면 보냄
       else if(sec>=maxSec) this.cutAtValley();                                 // 쉬지 않고 이어지면 가장 조용한 곳을 골라 자름
       else if(this.lidFirst && this.lidFirst() && !this.pv && !this.busy && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=40) this.lidPeek();   // 구글 모드에서 말하는 중 1.2초마다 언어 확인 → 영어면 바로 Whisper로
-      else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.ceil(this.avgMs*1.3/30))) this.previewNow();   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
+      else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.ceil(this.avgMs*2.5/30))) this.previewNow();   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
     }
   },
   lidPeek(){
@@ -1904,7 +1905,7 @@ const Whisper = {
         const r=await this.transcribe(a,this.prevLang,force);
         r.sec=sec; r.lag=Date.now()-q.end; r.backlog=this.queue.length;
         this.avgMs=this.avgMs*0.7+r.ms*0.3;
-        if(r.backlog||q.merged){ this.pvHold=Date.now()+8000; }   // v0.6.3: 실제로 쌓였을 때만 8초 쉼 (전에는 받아쓰기가 2.5초만 넘어도 쉬어서 미리 보기가 거의 안 나왔음)
+        if(r.lag>2500||r.backlog||q.merged){ this.pvHold=Date.now()+20000; }   // 밀리면 20초 동안 미리 보기를 쉬고 확정 받아쓰기에 집중 (v0.6.3 변경은 되돌림)
         if(!whBad(r.text,sec)){ this.prevLang=r.lang; this.handlers.text?.(r.text, r.lang, r); }
         else console.info('Whisper 결과 버림(지어낸 말·반복 의심):', r.text);
       }catch(e){ console.warn('Whisper 오류',e); this.handlers.error?.(e); }
@@ -2204,6 +2205,7 @@ function cutPoint(ws,lang){
 }
 function onInterim(t){
   if(!S.presenting) return;
+  if(S.asr==='auto' && S.autoMode==='google' && t) gSeen();
   const ws=words(t);
   if(utt.skip>ws.length) utt.skip=ws.length;                    // 인식기가 앞부분을 고쳐 짧아진 경우
   const {done,rest}=splitSentences(ws.slice(utt.skip).join(' '),S.lang);
@@ -2231,7 +2233,8 @@ function onFinal(t){
 /* ---------- v0.6.0 자동 귀: 한국어는 구글 음성인식(말하는 중 표시·정확), 영어는 Whisper(언어 자동·기기 안) ---------- */
 Whisper.lidFirst=()=>S.presenting && S.asr==='auto' && S.autoMode==='google';
 function autoToGoogle(){
-  if(!Speech.supported || S.autoMode==='google') return;
+  if(!Speech.supported || S.autoMode==='google' || G.fail) return;
+  G.starts++; G.lastAt=0;
   S.autoMode='google'; S.koRun=0; S.lang='ko'; S.interim=null; utt={skip:0}; VB.log('자동 귀 → 구글(한국어)');
   Speech.handlers={state:setDot,interim:onInterim,final:onFinalAuto}; Speech.start('ko');
   toast('한국어 감지 → 구글 음성인식으로 (말하는 중에도 표시)',2000); langInd(); earInd(); renderLive();
@@ -2241,7 +2244,10 @@ function autoToWhisper(segStart){
   S.autoMode='whisper'; VB.log('자동 귀 → Whisper(영어 판별)'); S.dropAfter=(segStart||Date.now())-300; Speech.stop(); S.interim=null; utt={skip:0};
   setDot(Whisper.running?'on':''); toast('영어 감지 → Whisper로',1500); langInd(); earInd(); renderLive();
 }
-function onFinalAuto(t){                                                      // 구글 결과는 0.7초 기다렸다가: 그사이 영어로 판별되면 버림(영어를 한국어로 잘못 받아쓴 글)
+/* v0.6.4: 구글이 실제로 받아쓰는지 감시 — 한국어 조각 동안 구글 결과가 하나도 없으면 그 조각은 Whisper가 받아쓰고, 두 번 연속이면 구글을 포기 */
+const G={starts:0,results:0,lastAt:0,miss:0,fail:false};
+function gSeen(){ G.results++; G.lastAt=Date.now(); G.miss=0; }
+function onFinalAuto(t){ if(t) gSeen();                                       // 구글 결과는 0.7초 기다렸다가: 그사이 영어로 판별되면 버림(영어를 한국어로 잘못 받아쓴 글)
   const at=Date.now();
   setTimeout(()=>{ if(S.autoMode!=='google' && at>=(S.dropAfter||0)) { utt={skip:0}; return; } onFinal(t); },700);
 }
@@ -2311,7 +2317,12 @@ async function startWhisperEar(){
         if(S.translate && Tr.ready(lang,other(lang))) trTerms(src,lang,other(lang)).then(out=>{ if(out && S.interim && S.interim.src===src+' …'){ S.interim.tgt=other(lang)==='ko'?politeKo(out):out; renderLive(); } }).catch(()=>{});
       },
       text:onWhisperText,
-      lid(l,q){   // v0.6.1: 구글→Whisper는 확실할 때만 (끝난 조각 -3 이하, 말하는 중 확인은 -2 이하가 두 번 연속)
+      lid(l,q){
+        if(!q.peek && l.lang==='ko' && S.autoMode==='google' && G.lastAt < (q.start||0)){   // 한국어인데 그동안 구글 결과 없음
+          G.miss++; VB.log('구글 결과 없음 → 이 조각은 Whisper가 받아씀 ('+G.miss+'번째)');
+          if(G.miss>=2){ G.fail=true; autoToWhisper(); toast('구글 음성인식이 응답하지 않아 Whisper로 계속합니다 (진단 보기에 기록)',4000); }
+          return true;
+        }   // v0.6.1: 구글→Whisper는 확실할 때만 (끝난 조각 -3 이하, 말하는 중 확인은 -2 이하가 두 번 연속)
         if(l.lang==='en' && (q.peek ? (l.margin<-2 && ++S.enPeek>=2) : l.margin<-3)){ S.enPeek=0; autoToWhisper(q&&q.start); return !q.peek; }
         if(!q.peek || l.lang==='ko') S.enPeek=0; return false; },
       error(e){ toast('Whisper 오류: '+e.message,5000); }
@@ -2523,7 +2534,7 @@ function buildTxt(){
   L.push('회의록 (발표 통역 자막 도우미)','');
   L.push('일시: '+metaDate(),'장소: '+S.meta.place,'기관: '+S.meta.org,'참석자: '+S.meta.people);
   L.push('화자: '+['A','B','C'].map(spLabel).join(' / '));
-  L.push('귀: '+({auto:'자동(한국어=구글, 영어=Whisper)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
+  L.push('귀: '+({auto:'자동(한국어=구글, 영어=Whisper)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+' · 구글 시작 '+G.starts+'회·결과 '+G.results+'회'+(G.fail?' · 구글 응답 없어 중단':'')+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
   L.push('자료: '+(D.name||'-'),'기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
   L.push(speedLine()); if(lagLine()) L.push(lagLine());
   L.push('','==================== 요약 정보 ====================','');
@@ -2675,4 +2686,4 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
 </script>
 </body>
 </html>
-<!-- END index v0.6.3 -->
+<!-- END index v0.6.4 -->
