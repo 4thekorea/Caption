@@ -1,5 +1,7 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.6.7 | 2026-11-13 | 사용자 시험(TED): 영어 문장 중간·작게 말한 문장이 통째로 빠지던 문제 — 음성 감지 기준을 고침(배경 소음은 가장 조용할 때 기준, 작은 목소리를 쉼으로 보지 않음; 음량 섞인 음성 포착 46%→85%). '안녕하십니까?'는 'Hello.'로, 요약의 질문 목록에서 인사 제외
+  index v0.6.9 | 2026-11-13 | 아이패드 30초 테스트 오류(GPUDevice.createBuffer): 아이패드·아이폰은 가벼운 모드로 고정, Whisper가 실패하면 가벼운 모드로 다시(내부 회의 'Whisper만'은 음성이 밖으로 나가므로 저절로 바꾸지 않고 멈춤)
+  v0.6.8 | 2026-11-13 | 자동 귀에서 구글이 받아쓴 한국어 문장이 두 번 기록되던 문제 수정
+  v0.6.7 | 2026-11-13 | 사용자 시험(TED): 영어 문장 중간·작게 말한 문장이 통째로 빠지던 문제 — 음성 감지 기준을 고침(배경 소음은 가장 조용할 때 기준, 작은 목소리를 쉼으로 보지 않음; 음량 섞인 음성 포착 46%→85%). '안녕하십니까?'는 'Hello.'로, 요약의 질문 목록에서 인사 제외
   v0.6.6 | 2026-11-07 | 배포 전 자동 시험에서 찾은 5건: 내부 회의 뒤 자동·한국어 묶음이 번역을 다시 켬, 밀린 조각은 같은 언어끼리만 합침(언어가 바뀌는 첫 문장이 사라지던 문제), Whisper 25초 무응답 알림, '안녕하십니까'는 인사, 회의록 지연에 구글 문장 구분
   v0.6.5 | 2026-11-03 | 영어 문장 중간이 빠지던 문제: 자료 용어 힌트를 기본으로 끔(힌트가 앞 문맥으로 작용해 Whisper가 말을 건너뜀), 받아쓰기 글자 수 상한 완화
   v0.6.4 | 2026-11-03 | v0.6.3의 미리 보기 변경은 되돌림(사용자 판단: 엉망). 자동 귀: 구글로 넘어간 뒤 구글 결과가 없으면 그 한국어 조각은 Whisper가 받아쓰고(말 버림 방지), 두 번 연속이면 구글 중단. 회의록에 구글 시작·결과 횟수
@@ -30,7 +32,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.6.7</title>
+<title>발표 통역 자막 도우미 v0.6.9</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -165,7 +167,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.6.7 · 2026-11-13</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.6.9 · 2026-11-13</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -321,7 +323,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.6.7',d:'2026-11-13',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.6.9',d:'2026-11-13',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1367,6 +1369,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const isKo=s=>/[가-힣]/.test(s||'');
 const LANGS={ ko:{bcp:'ko-KR',name:'한국어',tag:'KO'}, en:{bcp:'en-US',name:'영어',tag:'EN'} };
 const other=l=>l==='ko'?'en':'ko';
+const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);   // v0.6.9: 아이패드·아이폰은 Whisper를 돌릴 메모리가 없어 가벼운 모드만
 const LS_KEY='pcap.session.v2', LS_OLD='pcap.session.v1';
 const SPK_DEF={A:'발표자',B:'상대 기관',C:'질문자'};
 
@@ -2241,12 +2244,12 @@ function onInterim(t){
   renderLive();
   maybeTranslateInterim(shown,out=>{ if(S.interim&&S.interim.src===shown){ S.interim.tgt=out; renderLive(); } });
 }
-function onFinal(t){
+function onFinal(t,sk){
   if(!S.presenting) return;
   S.interim=null; interimSeq++;
-  const rest=words(t).slice(utt.skip).join(' ');
+  const rest=words(t).slice(sk!=null?sk:utt.skip).join(' ');
   if(rest){ const {done,rest:r}=splitSentences(rest,S.lang); (r?done.concat([r]):done).forEach(x=>commitSentence(x,S.lang)); }
-  utt={skip:0};
+  if(sk==null) utt={skip:0};
   renderLive();
 }
 /* ---------- Whisper 모드: 말이 멈추면 한 덩어리씩 (언어 자동) ---------- */
@@ -2268,8 +2271,8 @@ function autoToWhisper(segStart){
 const G={starts:0,results:0,lastAt:0,miss:0,fail:false};
 function gSeen(){ G.results++; G.lastAt=Date.now(); G.miss=0; }
 function onFinalAuto(t){ if(t) gSeen();                                       // 구글 결과는 0.7초 기다렸다가: 그사이 영어로 판별되면 버림(영어를 한국어로 잘못 받아쓴 글)
-  const at=Date.now();
-  setTimeout(()=>{ if(S.autoMode!=='google' && at>=(S.dropAfter||0)) { utt={skip:0}; return; } onFinal(t); },700);
+  const at=Date.now(), sk=utt.skip; utt={skip:0};                              // v0.6.8: 이미 화면에 올린 낱말 수를 지금 기억 — 0.7초 기다리는 사이 0으로 돌아가 같은 문장이 두 번 기록되던 문제
+  setTimeout(()=>{ if(S.autoMode!=='google' && at>=(S.dropAfter||0)) return; onFinal(t,sk); },700);
 }
 function onWhisperText(text,lang,r){
   if(!S.presenting) return;
@@ -2309,6 +2312,7 @@ function readSetup(){
   S.translate=$('optTranslate').checked;
   S.trEngine=document.querySelector('input[name=tre]:checked').value;
   S.asr=document.querySelector('input[name=asr]:checked').value;
+  if(IS_IOS && S.asr!=='web'){ S.asr='web'; const r=document.querySelector('input[name=asr][value=web]'); if(r) r.checked=true; }   // v0.6.9
   S.whModel=$('whModel').value;
   S.join=$('optJoin').checked; S.preview=$('optPreview').checked; S.hint=$('optHint').checked; S.polite=$('optPolite').checked; S.yeoreobun=$('optYeo').checked;
   S.autoFix=$('optAutoFix').checked; S.keepEn=$('optKeepEn').checked;
@@ -2330,7 +2334,20 @@ function startPresent(){
   else { Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang); toast(`${LANGS[S.lang].name} 발표 · 통역 시작 (L: 언어 전환 · Esc 두 번: 종료)`,3500); }
   saveSoon();
 }
+/* v0.6.9: Whisper가 안 되는 기기(메모리 부족 등) — 가벼운 모드로 바꾸되, 'Whisper만'(내부 회의)에서는 음성이 밖으로 나가므로 저절로 바꾸지 않고 멈춤 */
+let whErrs=0;
+function whFallback(msg){
+  console.warn(msg); VB.log(msg); setDot('err'); S.interim=null;
+  try{ if(Whisper.running) Whisper.stopMic(); }catch(_){}
+  if(S.asr==='whisper'){ S.interim={src:'⚠ 받아쓰기를 할 수 없습니다 — 내부 회의 모드라 가벼운 모드(음성 외부 전송)로 바꾸지 않았습니다. PC 크롬에서 다시 해 주세요.',lang:S.lang}; renderLive();
+    toast(msg+' — 내부 회의 모드에서는 음성이 밖으로 나가는 가벼운 모드로 저절로 바꾸지 않습니다. PC 크롬(그래픽 가속)에서 써 주세요.',12000); return; }
+  renderLive();
+  if(!Speech.supported){ toast(msg+' — 이 브라우저는 가벼운 모드도 지원하지 않습니다. 크롬으로 열어 주세요.',9000); return; }
+  toast(msg+' — 가벼운 모드로 바꿉니다 (⚠ 음성이 브라우저 회사 서버로 전송)',8000);
+  S.asr='web'; S.autoMode='whisper'; langInd(); earInd(); Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang);
+}
 async function startWhisperEar(){
+  whErrs=0;
   try{
     if(Whisper.state!=='ready'||Whisper.model!==S.whModel){ toast('Whisper 준비 중… (처음이면 내려받기 때문에 몇 분 걸릴 수 있습니다)',6000); S.interim={src:'⬇ Whisper 준비 중…',lang:S.lang,note:'처음 한 번 모델을 내려받습니다'}; renderLive(); await Whisper.load(S.whModel); if(S.interim&&S.interim.src.startsWith('⬇')){ S.interim=null; renderLive(); } }
     if(!S.presenting) return;
@@ -2353,13 +2370,12 @@ async function startWhisperEar(){
         }   // v0.6.1: 구글→Whisper는 확실할 때만 (끝난 조각 -3 이하, 말하는 중 확인은 -2 이하가 두 번 연속)
         if(l.lang==='en' && (q.peek ? (l.margin<-2 && ++S.enPeek>=2) : l.margin<-3)){ S.enPeek=0; autoToWhisper(q&&q.start); return !q.peek; }
         if(!q.peek || l.lang==='ko') S.enPeek=0; return false; },
-      error(e){ toast('Whisper 오류: '+e.message,5000); }
+      error(e){ toast('Whisper 오류: '+e.message,5000); VB.log('Whisper 오류: '+e.message); if(/GPU|buffer|memory|device|alloc/i.test(e.message||'') && ++whErrs>=2) whFallback('Whisper가 이 기기에서 계속 실패합니다: '+e.message); }   // v0.6.9
     });
     earInd(); toast('Whisper 통역 시작 — 언어 자동 판단 (Esc 두 번: 종료)',3500);
   }catch(e){
     console.error(e); setDot('err'); S.interim=null; renderLive();
-    toast('Whisper를 시작하지 못했습니다: '+e.message+' — 가벼운 모드로 바꿉니다',7000);
-    S.asr='web'; langInd(); if(Speech.supported){ Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang); }
+    whFallback('Whisper를 시작하지 못했습니다: '+e.message);
   }
 }
 function endPresent(){
@@ -2461,10 +2477,17 @@ async function startWhisperTest(){
           if(S.translate){ const out=await trTerms(src,lang,other(lang)); if(out){ line.tgt=out; renderTest(''); } }
         }
       },
-      error(e){ renderTest('오류: '+e.message); }
+      error(e){ if(/GPU|buffer|memory|device|alloc/i.test(e.message||'')) whTestFail(e); else renderTest('오류: '+e.message); }
     });
     setTimeout(()=>{ if(testing) stopTest(); },30000);
-  }catch(e){ renderTest('Whisper를 시작하지 못했습니다: '+e.message); testing=false; $('btnTest').textContent='🎤 테스트 다시 하기'; }
+  }catch(e){ whTestFail(e); }
+}
+function whTestFail(e){   // v0.6.9: 이 기기에서 Whisper가 안 되면 가벼운 모드로 다시 시험 (내부 회의 'Whisper만'은 제외 — 음성이 밖으로 나가므로)
+  testing=false; try{ if(Whisper.running) Whisper.stopMic(); }catch(_){} $('btnTest').textContent='🎤 테스트 다시 하기'; VB.log('테스트: Whisper 실패 '+(e&&e.message));
+  if(S.asr==='whisper' || !Speech.supported){ renderTest('Whisper를 시작하지 못했습니다: '+(e&&e.message)+(S.asr==='whisper'?' — 내부 회의(Whisper만)는 PC 크롬에서 써 주세요. 가벼운 모드는 음성이 밖으로 나가므로 저절로 바꾸지 않았습니다.':'')); return; }
+  const r=document.querySelector('input[name=asr][value=web]'); if(r) r.checked=true; S.asr='web'; refreshAsrStatus(); saveSoon();
+  toast('이 기기에서는 Whisper를 쓸 수 없어 가벼운 모드로 바꿨습니다 (⚠ 음성이 브라우저 회사 서버로 전송)',7000);
+  $('btnTest').onclick();
 }
 
 /* =========================================================
@@ -2674,6 +2697,7 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
   if(p==='ko'){ q('asr','web'); q('lang','ko'); $('optTranslate').checked=true; } else if(p==='auto'){ q('asr','auto'); $('optTranslate').checked=true; } else {   // v0.6.6: 내부 회의 뒤에도 번역이 다시 켜지게
     q('asr','whisper'); $('optTranslate').checked=false; }
   readSetup(); refreshAsrStatus(); saveSoon();
+  if(IS_IOS && p!=='ko'){ toast(p==='secret'?'⚠ 아이패드·아이폰에서는 내부 회의 모드(음성이 기기 안에서만)를 쓸 수 없습니다. 가벼운 모드로 바뀌었고 음성이 브라우저 회사 서버로 전송됩니다 — 비공개 회의는 PC 크롬에서 해 주세요.':'아이패드·아이폰에서는 가벼운 모드로만 동작합니다 (언어는 ①에서 직접 선택 · ⚠ 음성이 브라우저 회사 서버로 전송)',12000); return; }
   toast(p==='ko'?'우리 한국어 발표: 가벼운 모드(한국어) · 말하는 중에도 표시 · ⚠ 음성이 브라우저 회사 서버로 전송':p==='auto'?'자동: 한국어는 구글(⚠ 음성 외부 전송), 영어는 Whisper(기기 안)':'시청 내부 회의: Whisper만 · 음성은 기기 안에서만 · 번역 끔(회의록만)',3500);
 }));
 ['spA','spB','spC'].forEach(id=>$(id).addEventListener('input',()=>{ S.speakers={A:$('spA').value.trim(),B:$('spB').value.trim(),C:$('spC').value.trim()}; updateSpChips(); saveSoon(); }));
@@ -2711,9 +2735,10 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
   }
   refreshTrStatus(); refreshAsrStatus(); updateSpChips(); langInd(); earInd();
   if(Tr.chromeOK){ try{ Tr.avail={}; for(const [s,t] of [['ko','en'],['en','ko']]) Tr.avail[s+t]=await within(Translator.availability({sourceLanguage:s,targetLanguage:t}),5000)||'응답 없음'; VB.log('크롬 번역 상태 '+JSON.stringify(Tr.avail)); }catch(e){ Tr.avail={err:e.message}; } }
+  if(IS_IOS){ document.querySelectorAll('input[name=asr]').forEach(r=>{ if(r.value==='web') r.checked=true; else { r.disabled=true; r.parentElement.style.opacity='.45'; } }); S.asr='web'; const b=$('btnWhLoad'); if(b){ b.disabled=true; b.textContent='Whisper는 PC 전용'; } refreshAsrStatus(); VB.log('아이패드·아이폰: 가벼운 모드로 고정'); }   // v0.6.9
   VB.log('앱 준비됨');
 })();
 </script>
 </body>
 </html>
-<!-- END index v0.6.7 -->
+<!-- END index v0.6.9 -->
