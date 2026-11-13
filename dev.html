@@ -1,5 +1,6 @@
 <!-- 버전·날짜·변경 3줄
-  index v0.6.9 | 2026-11-13 | 아이패드 30초 테스트 오류(GPUDevice.createBuffer): 아이패드·아이폰은 가벼운 모드로 고정, Whisper가 실패하면 가벼운 모드로 다시(내부 회의 'Whisper만'은 음성이 밖으로 나가므로 저절로 바꾸지 않고 멈춤)
+  index v0.7.0 | 2026-11-13 | 자동 귀 구조 변경(사용자 결정 '가안'): 구글 한국어 음성인식을 처음부터 계속 켜 두고 조각마다 언어를 먼저 판별 — 한국어는 받아 둔 구글 글을 올리고 영어는 Whisper가 받아씀 (한국어로 바뀐 첫 문장이 깨지거나 사라지던 문제). ⚠ 자동 모드에서는 영어 음성도 구글로 전송
+  v0.6.9 | 2026-11-13 | 아이패드 30초 테스트 오류(GPUDevice.createBuffer): 아이패드·아이폰은 가벼운 모드로 고정, Whisper가 실패하면 가벼운 모드로 다시(내부 회의 'Whisper만'은 음성이 밖으로 나가므로 저절로 바꾸지 않고 멈춤)
   v0.6.8 | 2026-11-13 | 자동 귀에서 구글이 받아쓴 한국어 문장이 두 번 기록되던 문제 수정
   v0.6.7 | 2026-11-13 | 사용자 시험(TED): 영어 문장 중간·작게 말한 문장이 통째로 빠지던 문제 — 음성 감지 기준을 고침(배경 소음은 가장 조용할 때 기준, 작은 목소리를 쉼으로 보지 않음; 음량 섞인 음성 포착 46%→85%). '안녕하십니까?'는 'Hello.'로, 요약의 질문 목록에서 인사 제외
   v0.6.6 | 2026-11-07 | 배포 전 자동 시험에서 찾은 5건: 내부 회의 뒤 자동·한국어 묶음이 번역을 다시 켬, 밀린 조각은 같은 언어끼리만 합침(언어가 바뀌는 첫 문장이 사라지던 문제), Whisper 25초 무응답 알림, '안녕하십니까'는 인사, 회의록 지연에 구글 문장 구분
@@ -32,7 +33,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.6.9</title>
+<title>발표 통역 자막 도우미 v0.7.0</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -167,7 +168,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.6.9 · 2026-11-13</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.7.0 · 2026-11-13</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -205,7 +206,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div class="row"><span class="sb">상황에 맞게 한 번에:</span><button data-preset="auto">해외 출장·브리핑 → 자동</button><button data-preset="ko">우리 한국어 발표만 → 가벼운 모드</button><button data-preset="secret">시청 내부 회의 → Whisper만 (음성 밖으로 안 나감)</button></div>
 <p class="sb"><b>자동</b>이면 E를 누를 필요가 없습니다. Whisper·가벼운 모드로 고정했을 때만 발표 중 <kbd>E</kbd> 로 둘 사이를 바꿉니다.</p>
 <div class="radio">
-<label><input type="radio" name="asr" value="auto" checked> <b>자동 (추천)</b> — 한국어가 들리면 구글 음성인식(정확·말하는 중 표시, ⚠ 음성 외부 전송), 영어가 들리면 Whisper(기기 안). E 키 필요 없음</label>
+<label><input type="radio" name="asr" value="auto" checked> <b>자동 (추천)</b> — 구글 한국어 음성인식을 계속 켜 두고, 한국어는 구글 글(정확·말하는 중 표시), 영어는 Whisper 글을 보여 줌. <b>⚠ 음성 전체(영어 포함)가 구글로 전송</b>. E 키 필요 없음</label>
 <label><input type="radio" name="asr" value="whisper"> Whisper — 말마다 언어 자동 판단, 한·영 섞어도 됨, <b>음성이 기기 밖으로 안 나감</b> (PC 크롬 권장)</label>
 <label><input type="radio" name="asr" value="web"> 가벼운 모드 — 브라우저 내장 (아이패드·저사양), <b>음성이 브라우저 회사 서버로 전송</b>, 언어는 직접 선택</label>
 </div>
@@ -323,7 +324,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.6.9',d:'2026-11-13',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.7.0',d:'2026-11-13',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1641,6 +1642,7 @@ const Speech = {
       if(g!==this.gen) return;
       console.warn('음성인식 오류:', e.error, e.message); VB.log('구글 음성인식 오류: '+e.error); Speech.lastErr=e.error;
       if(e.error==='no-speech'||e.error==='aborted') return;
+      if(this.quiet){ if(/network|not-allowed|service-not-allowed|audio-capture/.test(e.error)) this.handlers.error?.(e.error); return; }   // v0.7.0
       if(e.error==='not-allowed'||e.error==='service-not-allowed'){
         this.want=false; this.handlers.state('err');
         toast('마이크가 차단되어 있습니다. 주소창 왼쪽 아이콘 → 마이크 "허용" 후 새로고침하세요.',8000); return;
@@ -1859,7 +1861,7 @@ const Whisper = {
       if(v.silent>=sil && v.buf.length>=50) this.endSeg();                     // 1.5초 미만 조각은 다음 말과 함께 (짧은 조각은 Whisper가 잘못 듣기 쉬움)
       else if(v.silent>=40) this.endSeg();                                     // 짧은 말이라도 1.2초 조용하면 보냄
       else if(sec>=maxSec) this.cutAtValley();                                 // 쉬지 않고 이어지면 가장 조용한 곳을 골라 자름
-      else if(this.lidFirst && this.lidFirst() && !this.pv && !this.busy && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=40) this.lidPeek();   // 구글 모드에서 말하는 중 1.2초마다 언어 확인 → 영어면 바로 Whisper로
+      else if(this.peekFirst && this.peekFirst() && !this.pv && !this.busy && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=40) this.lidPeek();   // 구글 모드에서 말하는 중 1.2초마다 언어 확인 → 영어면 바로 Whisper로
       else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.ceil(this.avgMs*2.5/30))) this.previewNow();   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
     }
   },
@@ -1867,13 +1869,13 @@ const Whisper = {
     const v=this.vad, fr=v.buf; v.lastPv=fr.length;
     const a=new Float32Array(fr.length*480); fr.forEach((f,i)=>a.set(f,i*480));
     this.pv=true;
-    this.call({cmd:'lid',audio:a,prev:this.prevLang},[a.buffer]).then(l=>{ this.pv=false; if(this.vad.speaking && this.lidFirst && this.lidFirst() && this.handlers.lid) this.handlers.lid(l,{start:v.segStart,peek:true}); }).catch(()=>{ this.pv=false; });
+    this.call({cmd:'lid',audio:a,prev:this.prevLang},[a.buffer]).then(l=>{ this.pv=false; if(this.vad.speaking && this.peekFirst && this.peekFirst() && this.handlers.lid) this.handlers.lid(l,{start:v.segStart,peek:true}); }).catch(()=>{ this.pv=false; });
   },
   previewNow(){
     const v=this.vad, fr=v.buf; v.lastPv=fr.length;
     const a=new Float32Array(fr.length*480); fr.forEach((f,i)=>a.set(f,i*480)); const sec=a.length/16000;
     this.pv=true;
-    this.transcribe(a,this.prevLang,v.pvLang||undefined).then(r=>{ this.pv=false; if(this.vad.speaking && !v.pvLang) v.pvLang=r.lang; if(this.vad.speaking && !this.busy && !whBad(r.text,sec)) this.handlers.preview?.(r.text,r.lang); }).catch(()=>{ this.pv=false; });
+    this.transcribe(a,this.prevLang,v.pvLang||undefined).then(r=>{ this.pv=false; if(this.vad.speaking && !v.pvLang) v.pvLang=r.lang; if(this.vad.speaking && !this.busy && !whBad(r.text,sec)) this.handlers.preview?.(r.text,r.lang,r); }).catch(()=>{ this.pv=false; });
   },
   cutAtValley(){
     const v=this.vad, n=v.buf.length, from=Math.max(Math.floor(n*0.5), n-67);
@@ -2228,7 +2230,6 @@ function cutPoint(ws,lang){
 }
 function onInterim(t){
   if(!S.presenting) return;
-  if(S.asr==='auto' && S.autoMode==='google' && t) gSeen();
   const ws=words(t);
   if(utt.skip>ws.length) utt.skip=ws.length;                    // 인식기가 앞부분을 고쳐 짧아진 경우
   const {done,rest}=splitSentences(ws.slice(utt.skip).join(' '),S.lang);
@@ -2254,29 +2255,65 @@ function onFinal(t,sk){
 }
 /* ---------- Whisper 모드: 말이 멈추면 한 덩어리씩 (언어 자동) ---------- */
 /* ---------- v0.6.0 자동 귀: 한국어는 구글 음성인식(말하는 중 표시·정확), 영어는 Whisper(언어 자동·기기 안) ---------- */
-Whisper.lidFirst=()=>S.presenting && S.asr==='auto' && S.autoMode==='google';
-function autoToGoogle(){
-  if(!Speech.supported || S.autoMode==='google' || G.fail) return;
-  G.starts++; G.lastAt=0;
-  S.autoMode='google'; S.koRun=0; S.lang='ko'; S.interim=null; utt={skip:0}; VB.log('자동 귀 → 구글(한국어)');
-  Speech.handlers={state:setDot,interim:onInterim,final:onFinalAuto}; Speech.start('ko');
-  toast('한국어 감지 → 구글 음성인식으로 (말하는 중에도 표시)',2000); langInd(); earInd(); renderLive();
+/* v0.7.0 (가안): 자동 귀에서는 구글 한국어 음성인식을 처음부터 끝까지 켜 둠.
+   - 구글 글은 뒤에서 조용히 받아 두고(GB), Whisper가 조각마다 언어만 먼저 판별
+   - 한국어 조각 → 받아 둔 구글 글을 올리고, 이후는 구글 글을 말하는 중에 바로 표시 (첫 문장을 Whisper가 받아써서 깨지던 문제·구글 시작 지연 없음)
+   - 영어 조각 → Whisper가 받아쓰고 구글 글은 버림
+   - ⚠ 영어 음성도 구글로 전송됨 */
+const gLive=()=>Speech.supported && Speech.want && Speech.quiet && !G.fail;
+Whisper.lidFirst=()=>S.presenting && S.asr==='auto' && (S.autoMode==='google' || gLive());
+Whisper.peekFirst=()=>S.presenting && S.asr==='auto' && S.autoMode==='google';
+const G={starts:0,results:0,lastAt:0,miss:0,fail:false,wUntil:0};
+const GB={buf:[],t0:0,cur:''};                                               // 조용히 받아 둔 구글 글: {t0 말 시작쯤, t1 확정 시각, text, used}
+function gSeen(){ G.results++; G.lastAt=Date.now(); G.miss=0; }
+function gInterim(t){
+  if(t){ gSeen(); if(!GB.t0) GB.t0=Date.now(); }
+  GB.cur=t||'';
+  if(S.autoMode==='google') onInterim(t);
+}
+function gFinal(t){
+  const now=Date.now(), t0=GB.t0||now-1500; GB.t0=0; GB.cur='';
+  if(!t) return; gSeen();
+  const live=S.autoMode==='google', covered=t0<(G.wUntil||0);               // covered: 그 말은 이미 Whisper가 받아썼음
+  GB.buf.push({t0,t1:now,text:t,used:live||covered});
+  while(GB.buf.length && now-GB.buf[0].t1>30000) GB.buf.shift();
+  if(live && !covered) onFinalAuto(t);
+}
+function gError(code){
+  VB.log('구글 음성인식 사용 불가: '+code); G.fail=true; Speech.stop(); if(S.autoMode==='google') autoToWhisper();
+  toast('구글 음성인식을 쓸 수 없어('+code+') 한국어도 Whisper가 받아씁니다 — 1분 뒤 다시 시도',5000); earInd();
+  setTimeout(()=>{ if(S.presenting && S.asr==='auto' && G.fail && Whisper.running){ G.fail=false; G.miss=0; startGoogleQuiet(); } },60000);
+}
+function startGoogleQuiet(){
+  if(!Speech.supported) return;
+  GB.buf=[]; GB.t0=0; GB.cur='';
+  Speech.quiet=true; Speech.handlers={state(){},interim:gInterim,final:gFinal,error:gError}; Speech.start('ko'); VB.log('구글 음성인식(한국어) 계속 듣기 시작'); earInd();
+}
+function autoToGoogle(from){
+  if(!gLive() || S.autoMode==='google') return false;
+  G.starts++;
+  S.autoMode='google'; S.koRun=0; S.lang='ko'; S.interim=null; utt={skip:0};
+  const f=(from||Date.now())-800; let n=0;
+  GB.buf.forEach(x=>{ if(!x.used && x.t0>=f){ x.used=true; n++; onFinal(x.text,0); } });     // 이 말에 해당하는, 받아 둔 구글 글을 올림
+  const cur=GB.cur && (GB.t0||0)>=f ? GB.cur : '';
+  if(cur) onInterim(cur);                                                    // 지금 말하는 중인 글도 바로 표시
+  VB.log('자동 귀 → 구글(한국어) · 받아 둔 글 '+n+'개'+(cur?' + 말하는 중':''));
+  toast('한국어 감지 → 구글 글로 표시',1500); langInd(); earInd(); renderLive();
+  return n>0 || !!cur;
 }
 function autoToWhisper(segStart){
   if(S.autoMode!=='google') return;
-  S.autoMode='whisper'; VB.log('자동 귀 → Whisper(영어 판별)'); S.dropAfter=(segStart||Date.now())-300; Speech.stop(); S.interim=null; utt={skip:0};
-  setDot(Whisper.running?'on':''); toast('영어 감지 → Whisper로',1500); langInd(); earInd(); renderLive();
+  S.autoMode='whisper'; VB.log('자동 귀 → Whisper(영어 판별)'); S.dropAfter=(segStart||Date.now())-300; S.interim=null; utt={skip:0};
+  if(G.fail) Speech.stop();                                                   // v0.7.0: 구글은 끄지 않고 뒤에서 계속 듣게 둠 (응답이 없을 때만 끔)
+  setDot(Whisper.running?'on':''); toast('영어 감지 → Whisper 글로 표시',1500); langInd(); earInd(); renderLive();
 }
-/* v0.6.4: 구글이 실제로 받아쓰는지 감시 — 한국어 조각 동안 구글 결과가 하나도 없으면 그 조각은 Whisper가 받아쓰고, 두 번 연속이면 구글을 포기 */
-const G={starts:0,results:0,lastAt:0,miss:0,fail:false};
-function gSeen(){ G.results++; G.lastAt=Date.now(); G.miss=0; }
-function onFinalAuto(t){ if(t) gSeen();                                       // 구글 결과는 0.7초 기다렸다가: 그사이 영어로 판별되면 버림(영어를 한국어로 잘못 받아쓴 글)
+function onFinalAuto(t){                                                      // 구글 결과는 0.7초 기다렸다가: 그사이 영어로 판별되면 버림(영어를 한국어로 잘못 받아쓴 글)
   const at=Date.now(), sk=utt.skip; utt={skip:0};                              // v0.6.8: 이미 화면에 올린 낱말 수를 지금 기억 — 0.7초 기다리는 사이 0으로 돌아가 같은 문장이 두 번 기록되던 문제
   setTimeout(()=>{ if(S.autoMode!=='google' && at>=(S.dropAfter||0)) return; onFinal(t,sk); },700);
 }
 function onWhisperText(text,lang,r){
   if(!S.presenting) return;
-  if(S.asr==='auto' && S.autoMode==='whisper' && r){ if(lang==='ko'){ S.koRun=(S.koRun||0)+1; if(r.margin==null || r.margin>1 || S.koRun>=2) setTimeout(autoToGoogle,0); } else S.koRun=0; VB.log('Whisper 언어 '+lang+' '+(r.margin!=null?r.margin.toFixed(1):'')); }   // v0.6.3: 한국어 판별이 약해도(배경음) 두 번 연속이면 구글로   // 이 한국어 조각은 Whisper 글로 기록하고, 다음부터 구글
+  if(S.asr==='auto' && r) VB.log('Whisper 받아씀 '+lang+' '+(r.margin!=null?r.margin.toFixed(1):''));   // v0.7.0: 전환은 lid()에서   // v0.6.3: 한국어 판별이 약해도(배경음) 두 번 연속이면 구글로   // 이 한국어 조각은 Whisper 글로 기록하고, 다음부터 구글
   S.interim=null;
   // v0.6.1: 앞뒤에 붙는 빈말('The', 'A', '#') 떼기 — 'The I'm trying…' → 'I'm trying…'
   if(lang==='en'){
@@ -2303,7 +2340,7 @@ setInterval(()=>{
 function setDot(st){ $('dot').className=st==='on'?'on':st==='err'?'err':''; earInd(); }
 function earInd(){
   const on=$('dot').className==='on';
-  $('earInd').textContent = (S.asr==='auto' ? (S.autoMode==='google'?'자동: 지금 구글 음성인식(한국어) · 음성 외부 전송':'자동: 지금 Whisper'+(Whisper.device?'('+Whisper.device+')':'')+' · 기기 안 처리') : S.asr==='whisper' ? 'Whisper'+(Whisper.device?'('+Whisper.device+')':'')+' · 음성 기기 안 처리' : '가벼운 모드 · 음성 외부 전송')+(on?' · 🎙 켜짐':' · 마이크 꺼짐');
+  $('earInd').textContent = (S.asr==='auto' ? (S.autoMode==='google'?'자동: 지금 구글 글(한국어)':'자동: 지금 Whisper 글'+(Whisper.device?'('+Whisper.device+')':''))+(gLive()?' · 구글도 계속 듣는 중(음성 외부 전송)':' · 구글 꺼짐(Whisper만)') : S.asr==='whisper' ? 'Whisper'+(Whisper.device?'('+Whisper.device+')':'')+' · 음성 기기 안 처리' : '가벼운 모드 · 음성 외부 전송')+(on?' · 🎙 켜짐':' · 마이크 꺼짐');
 }
 
 /* ---------- 발표 시작·끝 ---------- */
@@ -2321,6 +2358,7 @@ function readSetup(){
 }
 function startPresent(){
   if(testing) stopTest();
+  Speech.quiet=false;
   readSetup();
   if(S.asr==='web' && !Speech.supported){ VB.note('음성인식 없음','이 브라우저는 내장 음성인식을 지원하지 않습니다. ③에서 Whisper를 고르거나 크롬으로 열어 주세요.'); return; }
   if(S.asr!=='web') Whisper.prepare();          // 클릭 직후 오디오 준비
@@ -2344,7 +2382,7 @@ function whFallback(msg){
   renderLive();
   if(!Speech.supported){ toast(msg+' — 이 브라우저는 가벼운 모드도 지원하지 않습니다. 크롬으로 열어 주세요.',9000); return; }
   toast(msg+' — 가벼운 모드로 바꿉니다 (⚠ 음성이 브라우저 회사 서버로 전송)',8000);
-  S.asr='web'; S.autoMode='whisper'; langInd(); earInd(); Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang);
+  S.asr='web'; S.autoMode='whisper'; Speech.quiet=false; langInd(); earInd(); Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang);
 }
 async function startWhisperEar(){
   whErrs=0;
@@ -2355,7 +2393,9 @@ async function startWhisperEar(){
       state:setDot,
       listening(on){ if(!S.presenting) return; if(on) S.interim={src:'🎙 듣는 중…',lang:S.lastLang||S.lang}; else if(S.interim&&S.interim.src==='🎙 듣는 중…') S.interim=Whisper.busy?{src:'⏳ 받아쓰는 중…',lang:S.lastLang||S.lang}:null; renderLive(); },
       busy(on){ if(!S.presenting) return; if(on&&!S.interim) S.interim={src:'⏳ 받아쓰는 중…',lang:S.lastLang||S.lang}; if(!on&&S.interim&&(S.interim.src==='⏳ 받아쓰는 중…'||S.interim.pv)) S.interim=null; renderLive(); },
-      preview(text,lang){                                                     // v0.5.1: 말하는 중 미리 보기 (확정 전, 흐린 카드)
+      preview(text,lang,r){                                                     // v0.5.1: 말하는 중 미리 보기 (확정 전, 흐린 카드)
+        if(S.asr==='auto' && S.autoMode==='whisper' && lang==='ko' && r && r.margin>3 && GB.cur && autoToGoogle(Whisper.vad.segStart)) return;   // v0.7.0: 말하는 중에 한국어가 확실하면 바로 구글 글로
+        if(S.autoMode==='google' && S.asr==='auto') return;
         if(!S.presenting||S.preview===false) return;
         const src=Terms.correct(text,lang), keep=S.interim&&S.interim.pv&&S.interim.lang===lang?S.interim.tgt:'';
         S.interim={src:src+' …',lang,tgt:keep,pv:true,note:'미리 보기 — 말이 끝나면 확정됩니다'}; renderLive();
@@ -2363,16 +2403,27 @@ async function startWhisperEar(){
       },
       text:onWhisperText,
       lid(l,q){
-        if(!q.peek && l.lang==='ko' && S.autoMode==='google' && G.lastAt < (q.start||0)){   // 한국어인데 그동안 구글 결과 없음
-          G.miss++; VB.log('구글 결과 없음 → 이 조각은 Whisper가 받아씀 ('+G.miss+'번째)');
-          if(G.miss>=2){ G.fail=true; autoToWhisper(); toast('구글 음성인식이 응답하지 않아 Whisper로 계속합니다 (진단 보기에 기록)',4000); }
+        if(S.autoMode==='whisper'){                                            // v0.7.0: 구글은 뒤에서 듣는 중 — 이 조각이 한국어인지 먼저 봄
+          if(q.peek) return false;
+          if(l.lang!=='ko'){ S.koRun=0; return true; }                         // 영어 → Whisper가 받아씀
+          S.koRun=(S.koRun||0)+1;
+          if(!(l.margin>1 || S.koRun>=2)) return true;                         // 한국어 판별이 약하면 이번은 Whisper가 (두 번 연속이면 전환)
+          if(autoToGoogle(q.start)) return false;                              // 받아 둔 구글 글을 올렸음 → Whisper는 받아쓰지 않음
+          G.miss++; G.wUntil=q.end||Date.now(); VB.log('한국어인데 구글 글 없음 → 이 조각은 Whisper가 받아씀 ('+G.miss+'번째)');
+          if(G.miss>=3) gError('응답 없음');
+          return true;
+        }
+        if(!q.peek && l.lang==='ko' && G.lastAt < (q.start||0)){               // 한국어인데 그동안 구글 결과 없음
+          G.miss++; G.wUntil=q.end||Date.now(); VB.log('구글 결과 없음 → 이 조각은 Whisper가 받아씀 ('+G.miss+'번째)');
+          if(G.miss>=3) gError('응답 없음');
           return true;
         }   // v0.6.1: 구글→Whisper는 확실할 때만 (끝난 조각 -3 이하, 말하는 중 확인은 -2 이하가 두 번 연속)
         if(l.lang==='en' && (q.peek ? (l.margin<-2 && ++S.enPeek>=2) : l.margin<-3)){ S.enPeek=0; autoToWhisper(q&&q.start); return !q.peek; }
         if(!q.peek || l.lang==='ko') S.enPeek=0; return false; },
       error(e){ toast('Whisper 오류: '+e.message,5000); VB.log('Whisper 오류: '+e.message); if(/GPU|buffer|memory|device|alloc/i.test(e.message||'') && ++whErrs>=2) whFallback('Whisper가 이 기기에서 계속 실패합니다: '+e.message); }   // v0.6.9
     });
-    earInd(); toast('Whisper 통역 시작 — 언어 자동 판단 (Esc 두 번: 종료)',3500);
+    if(S.asr==='auto'){ Object.assign(G,{starts:0,results:0,lastAt:0,miss:0,fail:false,wUntil:0}); startGoogleQuiet(); }   // v0.7.0
+    earInd(); toast(S.asr==='auto'&&Speech.supported?'자동 통역 시작 — 한국어는 구글 글, 영어는 Whisper 글 (⚠ 음성 전체가 구글로 전송 · Esc 두 번: 종료)':'Whisper 통역 시작 — 언어 자동 판단 (Esc 두 번: 종료)',4500);
   }catch(e){
     console.error(e); setDot('err'); S.interim=null; renderLive();
     whFallback('Whisper를 시작하지 못했습니다: '+e.message);
@@ -2380,7 +2431,7 @@ async function startWhisperEar(){
 }
 function endPresent(){
   if(!S.presenting && !VB.inPresent) return;
-  S.presenting=false; Speech.stop(); if(Whisper.running) Whisper.stopMic(); S.interim=null; renderLive();
+  S.presenting=false; Speech.stop(); Speech.quiet=false; if(Whisper.running) Whisper.stopMic(); S.interim=null; renderLive();
   saveNow(); openMinutes();
 }
 let pendingImp=false;
@@ -2400,7 +2451,7 @@ function switchLang(){
 /* v0.4.4 귀 바꾸기 (E): Whisper ↔ 가벼운 모드. 우리 쪽 한국어 발표처럼 한 언어로 길게 말할 때는 가벼운 모드가 말하는 중에도 글자를 띄워 빠름 */
 function switchEar(){
   if(!S.presenting) return;
-  if(S.asr==='auto'){ toast('자동 귀에서는 E가 필요 없습니다 — 한국어는 구글, 영어는 Whisper로 저절로 바뀝니다 (③에서 고정 모드로 바꿀 수 있음)',3500); return; }
+  if(S.asr==='auto'){ toast('자동 귀에서는 E가 필요 없습니다 — 한국어는 구글 글, 영어는 Whisper 글이 저절로 나옵니다 (③에서 고정 모드로 바꿀 수 있음)',3500); return; }
   if(S.asr==='whisper'){
     if(!Speech.supported){ toast('이 브라우저에는 가벼운 모드(내장 음성인식)가 없습니다',2500); return; }
     if(Whisper.running) Whisper.stopMic();
@@ -2586,7 +2637,7 @@ function buildTxt(){
   L.push('회의록 (발표 통역 자막 도우미)','');
   L.push('일시: '+metaDate(),'장소: '+S.meta.place,'기관: '+S.meta.org,'참석자: '+S.meta.people);
   L.push('화자: '+['A','B','C'].map(spLabel).join(' / '));
-  L.push('귀: '+({auto:'자동(한국어=구글, 영어=Whisper)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+' · 구글 시작 '+G.starts+'회·결과 '+G.results+'회'+(G.fail?' · 구글 응답 없어 중단':'')+(Whisper.stalls?' · Whisper 응답 없음 '+Whisper.stalls+'회':'')+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
+  L.push('귀: '+({auto:'자동(구글 계속 켬: 한국어=구글 글, 영어=Whisper 글)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+' · 구글 글로 전환 '+G.starts+'회·구글 결과 '+G.results+'회'+(G.fail?' · 구글 응답 없어 중단':'')+(Whisper.stalls?' · Whisper 응답 없음 '+Whisper.stalls+'회':'')+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
   L.push('자료: '+(D.name||'-'),'기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
   L.push(speedLine()); if(lagLine()) L.push(lagLine());
   L.push('','==================== 요약 정보 ====================','');
@@ -2698,7 +2749,7 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
     q('asr','whisper'); $('optTranslate').checked=false; }
   readSetup(); refreshAsrStatus(); saveSoon();
   if(IS_IOS && p!=='ko'){ toast(p==='secret'?'⚠ 아이패드·아이폰에서는 내부 회의 모드(음성이 기기 안에서만)를 쓸 수 없습니다. 가벼운 모드로 바뀌었고 음성이 브라우저 회사 서버로 전송됩니다 — 비공개 회의는 PC 크롬에서 해 주세요.':'아이패드·아이폰에서는 가벼운 모드로만 동작합니다 (언어는 ①에서 직접 선택 · ⚠ 음성이 브라우저 회사 서버로 전송)',12000); return; }
-  toast(p==='ko'?'우리 한국어 발표: 가벼운 모드(한국어) · 말하는 중에도 표시 · ⚠ 음성이 브라우저 회사 서버로 전송':p==='auto'?'자동: 한국어는 구글(⚠ 음성 외부 전송), 영어는 Whisper(기기 안)':'시청 내부 회의: Whisper만 · 음성은 기기 안에서만 · 번역 끔(회의록만)',3500);
+  toast(p==='ko'?'우리 한국어 발표: 가벼운 모드(한국어) · 말하는 중에도 표시 · ⚠ 음성이 브라우저 회사 서버로 전송':p==='auto'?'자동: 한국어는 구글 글, 영어는 Whisper 글 · ⚠ 음성 전체가 구글로 전송 (비공개 회의는 [시청 내부 회의])':'시청 내부 회의: Whisper만 · 음성은 기기 안에서만 · 번역 끔(회의록만)',3500);
 }));
 ['spA','spB','spC'].forEach(id=>$(id).addEventListener('input',()=>{ S.speakers={A:$('spA').value.trim(),B:$('spB').value.trim(),C:$('spC').value.trim()}; updateSpChips(); saveSoon(); }));
 ['mDate','mPlace','mOrg','mPeople'].forEach(id=>$(id).addEventListener('input',()=>{ readSetup(); saveSoon(); }));
@@ -2741,4 +2792,4 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
 </script>
 </body>
 </html>
-<!-- END index v0.6.9 -->
+<!-- END index v0.7.0 -->
