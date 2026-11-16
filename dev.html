@@ -1,5 +1,6 @@
 <!-- 버전 기록 (최신이 위)
   ※ 버전을 바꿀 때는 아래 기록 한 줄과 VB.v·VB.d(스크립트 첫 줄) 두 곳만 고침 — 화면 표시·탭 제목은 VB.v에서 자동으로 채움, 맨 끝 END 주석도 같이
+  v0.8.0 | 2026-11-16 | 15:13 회의록 반영 묶음: ① 미리 보기 간격 상한 2.5초(첫 번 준비 시간은 계산에서 뺌 — 첫 번이 느려 간격이 6초로 늘어 '미리 보기 1회'였음), ② 끊긴 말 이어 붙일 때 앞이 마침표로 끝나고 뒤가 대문자면 마침표 유지("Tell me more. Secret number two." → "비밀 번호 2" 오역), ③ '자료 용어 자동 교정'과 '이어 붙이기'를 따로 셈·표시(이어 붙이기가 교정으로 집계되던 문제), ④ Whisper 잡음 '-끝-' 거르기, ⑤ 14어절 넘는 한국어는 이음말에서 나눠 번역(뒷부분이 빠지던 문제), ⑥ AI 요약: 상태 확인과 생성에 같은 설정, 모델을 받아야 하면 '다시 만들기'를 눌러 받기 시작하라고 안내·진행률 표시
   v0.7.9 | 2026-11-16 | 요약 정보를 '요점 + 화자별로 한 말' 중심으로 다시 짬(사용자: 핵심어·슬라이드별 발언은 무슨 소리인지 모르겠다): 요점(크롬 AI) → 화자별로 한 말(크롬 AI 요약, 없으면 시간대별 대표 문장 3~5개) → 질문·요청 → 중요 표시. 핵심어·슬라이드별 주요 발언·화자별 문장 수 삭제, 진행 시간은 맨 위 한 줄로. AI 요약이 안 될 때 이유(모델 받는 중·기능 없음 등)를 요약 칸과 파일에 표시
   v0.7.8 | 2026-11-16 | 말하는 중 미리 보기를 실제로 뜨게: 미리 보기는 가벼운 base 모델로(확정 받아쓰기 small과 분리, 한 번 0.3~0.6초 예상), 말 시작 1.2초부터 1.2초마다, 받아쓰기가 크게 밀릴 때만(대기 2조각·지연 6초) 5초 쉼 — v0.7.7 실기기에서 '미리 보기 0회'. 말 끝 판정 쉼 0.42초→0.36초
   v0.7.7 | 2026-11-16 | 회의록: 회의록 화면을 열면 AI 핵심 요약을 저절로 만듦(버튼은 '다시 만들기'로), 'PC 크롬·테스트 필요' 문구 삭제, .txt·.md 저장 파일 맨 위에 요약(AI 핵심 요약 → 질문 → 중요 → 슬라이드별 → 개요)이 먼저 오고 기술 정보(음성인식·속도·지연)는 맨 아래로. 저장할 때 요약이 만들어지는 중이면 기다렸다가 넣음
@@ -43,7 +44,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.7.9</title>
+<title>발표 통역 자막 도우미 v0.8.0</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -181,7 +182,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip" id="verChip">v0.7.9 · 2026-11-16</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip" id="verChip">v0.8.0 · 2026-11-16</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 음성인식·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -339,7 +340,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.7.9',d:'2026-11-16',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.8.0',d:'2026-11-16',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1756,6 +1757,7 @@ const WH_HALLU = /시청해\s*주셔서|구독|좋아요|알림\s*설정|MBC|KBS
 function whBad(text, sec){
   const t=(text||'').trim(); if(!t) return true;
   if(WH_HALLU.test(t)) return true;
+  if(/^(끝이?)+$/.test(t.replace(/[\s.,\-–—!?]/g,''))) return true;   // v0.8.0: '-끝-', '-끝이.' 같은 Whisper 잡음
   if(t.length > Math.max(40, sec*30)) return true;                         // 말한 시간보다 지나치게 긴 글 (반복 폭주)
   if(/(.{4,}?)\1{3,}/.test(t.replace(/\s/g,''))) return true;               // 같은 말 4번 이상 반복
   if(/^[\s#.,!?…-]*((a|an|the|#|uh|um)[\s.,!?]*)*$/i.test(t)) return true;     // v0.6.1: 'The', 'A # the the' 같은 빈말
@@ -1860,7 +1862,7 @@ const Whisper = {
       else if(v.silent>=40) this.endSeg();                                     // 짧은 말이라도 1.2초 조용하면 보냄
       else if(sec>=maxSec) this.cutAtValley();                                 // 쉬지 않고 이어지면 가장 조용한 곳을 골라 자름
       else if(this.peekFirst && this.peekFirst() && !this.pv && !this.busy && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=40) this.lidPeek();   // 구글 모드에서 말하는 중 1.2초마다 언어 확인 → 영어면 바로 Whisper로
-      else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.ceil((this.pvMs||400)*2/30))) this.previewNow();   // v0.7.8: 1.2초마다(미리 보기 시간의 2배 이상)   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
+      else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.min(83,Math.ceil((this.pvMs||400)*1.5/30)))) this.previewNow();   // v0.8.0: 1.2초~최대 2.5초마다   // v0.7.8: 1.2초마다(미리 보기 시간의 2배 이상)   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
     }
   },
   lidPeek(){
@@ -1873,7 +1875,7 @@ const Whisper = {
     const v=this.vad, fr=v.buf; v.lastPv=fr.length;
     const a=new Float32Array(fr.length*480); fr.forEach((f,i)=>a.set(f,i*480)); const sec=a.length/16000;
     this.pv=true;
-    this.pvAt=Date.now(); this.call({cmd:'pv',audio:a,lang:v.pvLang||undefined},[a.buffer]).then(r=>{ this.pv=false; this.pvMs=r.ms; if(this.vad.speaking && !v.pvLang) v.pvLang=r.lang; if(this.vad.speaking && !this.busy && !whBad(r.text,sec)) this.handlers.preview?.(r.text,r.lang,r); }).catch(()=>{ this.pv=false; });
+    this.pvAt=Date.now(); this.pvTry=(this.pvTry||0)+1; this.call({cmd:'pv',audio:a,lang:v.pvLang||undefined},[a.buffer]).then(r=>{ this.pv=false; this.pvK=(this.pvK||0)+1; if(this.pvK>1){ this.pvMs=this.pvMs?this.pvMs*0.7+r.ms*0.3:r.ms; } this.pvSum=(this.pvSum||0)+r.ms; /* v0.8.0: 첫 번(그래픽 준비)은 간격 계산에서 뺌 */ if(this.vad.speaking && !v.pvLang) v.pvLang=r.lang; if(this.vad.speaking && !this.busy && !whBad(r.text,sec)) this.handlers.preview?.(r.text,r.lang,r); }).catch(()=>{ this.pv=false; });
   },
   cutAtValley(){
     const v=this.vad, n=v.buf.length, from=Math.max(Math.floor(n*0.5), n-67);
@@ -2127,7 +2129,7 @@ function commitSentence(raw,lang,r){
   const e={id:Date.now()+Math.random(), via:r?'W':'G', time:new Date().toISOString(), slide:slideNo(), at:D.type==='html'?'HTML':'', lang, sp:spFor(lang), src:punct(fixed,lang), tgt:'', imp:false, trMs:null};
   e.type=utterType(e.src,lang);
   if(e.type==='greeting' && greetFix(e.src,lang)) e.src=e.src.replace(/[?？]+\s*$/,'.');   // v0.6.7: '안녕하십니까?' → '안녕하십니까.'
-  if(fixed!==raw) e.raw=raw;
+  if(fixed!==raw){ e.raw=raw; e.termFix=true; }   // v0.8.0: 자료 용어 교정만 '교정'으로 셈
   if(r){ e.asrMs=r.ms; e.lag=r.lag; e.seg=Math.round(r.sec*10)/10; if(r.margin!=null) e.lid=Math.round(r.margin*10)/10; }
   e.heard=raw; e.t1=Date.now();
   const pr=Terms.protect(e.src,lang); if(pr.map.length) e.terms=pr.map.map(m=>m[1]);
@@ -2136,6 +2138,7 @@ function commitSentence(raw,lang,r){
   if(S.translate) translateEntry(e);
 }
 /* ---------- v0.4.3 끊긴 말 이어 붙이기: 앞 카드가 문장 중간에서 끊겼으면 새 카드를 만들지 않고 앞 카드에 붙여 다시 번역 ---------- */
+const EN_TAIL_STRICT=/^(to|and|but|or|of|the|a|an|with|for|in|on|at|from|by|because|so|if|when|which|who|whose|my|your|our|their|his|her|its|than|as|into)$/;   // v0.8.0: 마침표를 지워도 되는 '확실히 끊긴' 낱말 (more·just·very 등은 문장 끝일 수 있어 뺌)
 const EN_TAIL=/^(to|and|but|or|of|the|a|an|with|for|in|on|at|from|by|because|so|if|when|which|who|whose|my|your|our|their|his|her|its|than|as|into|about|not|just|very|more|most)$/;   // v0.5.1: that·you·we 등으로 끝난 완결 문장(Think about that.)은 붙이지 않음
 const KO_DONE=/(습니다|습니까|니다|니까|세요|에요|예요|어요|아요|해요|지요|까요|네요|군요|래요|게요|거든요|잖아요|죠|다|요)$/;
 function shouldJoin(prev,n,lang){
@@ -2156,13 +2159,15 @@ function shouldJoin(prev,n,lang){
   return !KO_DONE.test(p.replace(/[.]+$/,''));                               // 한국어: ~다·~요로 안 끝났으면 이어짐
 }
 function joinInto(e,raw,fixed,r){
+  const tf=fixed!==raw;   // v0.8.0: 소문자로 바꾸기 전에 '자료 용어 교정'이 있었는지
   const p=e.src.trim();
-  const keepStop = e.lang==='en' && /[^.]\.$/.test(p) && /^[A-Z]/.test(fixed) && !EN_TAIL.test((p.slice(0,-1).split(/\s+/).pop()||'').toLowerCase());   // 짧은 완결 문장(But first.) + 대문자 시작 → 마침표 유지
+  const keepStop = e.lang==='en' && /[^.]\.$/.test(p) && /^[A-Z]/.test(fixed) && !EN_TAIL_STRICT.test((p.slice(0,-1).split(/\s+/).pop()||'').toLowerCase());   // v0.8.0: 앞이 마침표·뒤가 대문자면 두 문장으로 둠   // 짧은 완결 문장(But first.) + 대문자 시작 → 마침표 유지
   let base=keepStop ? p : p.replace(/(\.\.\.|…|\.)$/,'');
   if(e.lang==='en' && !keepStop) fixed=fixed.replace(/^([A-Z])(?=[a-z]|\s)/,(m,c)=>c==='I'?c:c.toLowerCase());   // 이어지는 말의 첫 글자는 소문자로 (A little → a little)
   e.src=punct(base+' '+fixed,e.lang);
   e.heard=(e.heard||e.raw||base)+' '+raw;
-  if(e.heard.replace(/[.\s]/g,'')!==e.src.replace(/[.\s]/g,'')) e.raw=e.heard; else delete e.raw;
+  if(tf) e.termFix=true;
+  if(e.termFix) e.raw=e.heard; else delete e.raw;   // v0.8.0: 이어 붙이기만 했으면 '교정 전'을 남기지 않음 (이어 붙인 사실은 e.joined)
   e.type=utterType(e.src,e.lang); e.joined=(e.joined||1)+1; e.t1=Date.now();
   if(r){ e.lag=r.lag; e.seg=Math.round(((e.seg||0)+r.sec)*10)/10; }
   const pr=Terms.protect(e.src,e.lang); e.terms=pr.map.length?pr.map.map(m=>m[1]):undefined;
@@ -2211,9 +2216,15 @@ function splitLongEn(text){
   out=out.flatMap(x=>wc(x)<=24?[x]:pack(x.split(/\s+(?=(?:but|because|so that|which|while|whereas|although|when)\s)/i),20));   // 2) 그래도 길면 접속어에서 ('and'로는 안 나눔 — 명사구가 갈라짐)
   return out.flatMap(x=>{ const w=x.split(/\s+/); if(w.length<=24) return [x]; const r=[]; for(let i=0;i<w.length;i+=16) r.push(w.slice(i,i+16).join(' ')); return r; });   // 3) 마지막 수단
 }
+function splitLongKo(text){   // v0.8.0: 14어절 넘는 한국어는 쉼표·이음말(~는데·~지만·~고·~서·~면·~니까)에서 나눔
+  const ws=text.split(/\s+/).filter(Boolean); if(ws.length<=14) return [text];
+  const out=[]; let cur=[];
+  for(const w of ws){ cur.push(w); if(cur.length>=5 && (/[,，]$/.test(w) || /(는데|은데|지만|면서|하고|이고|해서|어서|아서|니까|으면|하면|거든요|구요|고요|죠)[,.]?$/.test(w))){ out.push(cur.join(' ')); cur=[]; } }
+  if(cur.length){ if(out.length && cur.length<3) out[out.length-1]+=' '+cur.join(' '); else out.push(cur.join(' ')); }
+  return out.flatMap(x=>{ const w=x.split(/\s+/); if(w.length<=14) return [x]; const r=[]; for(let i=0;i<w.length;i+=10) r.push(w.slice(i,i+10).join(' ')); return r; });
+}
 async function trLong(src,s,t){
-  if(s!=='en') return trTerms(src,s,t);
-  const ps=splitLongEn(src); if(ps.length<2) return trTerms(src,s,t);
+  const ps=s==='ko'?splitLongKo(src):splitLongEn(src); if(ps.length<2) return trTerms(src,s,t);
   const outs=[]; for(const p of ps){ const o=await trTerms(p,s,t); if(!o) return trTerms(src,s,t); outs.push(o.trim()); }
   return outs.join(' ');
 }
@@ -2429,7 +2440,7 @@ function startPresent(force){
   S.presenting=true; S.interim=null; utt={skip:0};
   VB.view('present');
   renderAll(); langInd(); earInd(); updateTopic();
-  S.autoMode='whisper'; S.hiddenN=0; Whisper.slowRun=0; Whisper.skipped=0; Whisper.skippedSec=0; Whisper.pvN=0; Whisper.autoBase=null; S.presentAt=Date.now(); setLamp(0,'-');
+  S.autoMode='whisper'; S.hiddenN=0; Whisper.slowRun=0; Whisper.skipped=0; Whisper.skippedSec=0; Whisper.pvN=0; Whisper.pvTry=0; Whisper.pvK=0; Whisper.pvSum=0; Whisper.pvMs=0; Whisper.autoBase=null; S.presentAt=Date.now(); setLamp(0,'-');
   if(window.__gpuSoft && S.asr!=='web') toast('⚠ 그래픽 가속이 CPU 흉내 장치로 잡혀 있어 느립니다 — 크롬 주소창에 chrome://flags → [Reset all] → [Relaunch] 후 다시 열어 주세요',12000);   // v0.7.3
   if(S.asr!=='web') startWhisperEar();
   else { Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang); toast(`${LANGS[S.lang].name} 발표 · 통역 시작 (L: 언어 전환 · Esc 두 번: 종료)`,3500); }
@@ -2676,7 +2687,8 @@ function speedLine(){
 function qualityLines(){   // v0.7.7: 기술 정보(속도·지연·교정) — 화면 요약 끝, 저장 파일은 맨 아래
   const E=S.entries, L=[];
   L.push('- '+speedLine().replace('번역 속도: ','번역 속도 ')); if(lagLine()) L.push('- '+lagLine());
-  const fx=E.filter(e=>e.raw).length; if(fx) L.push(`- 자료 용어로 자동 교정 ${fx}문장 (각 문장 아래 '교정 전' 확인)`);
+  const fx=E.filter(e=>e.raw&&e.termFix!==false&&(e.termFix||!e.joined)).length; L.push(`- 자료 용어로 자동 교정 ${fx}문장`+(fx?" (각 문장 아래 '교정 전' 확인)":''));
+  const jn=E.filter(e=>e.joined>1).length; if(jn) L.push(`- 끊긴 말 이어 붙임 ${jn}문장`);
   const nt=S.translate?E.filter(e=>!e.tgt).length:0; if(nt) L.push(`- 번역 없는 문장 ${nt}개`);
   return L;
 }
@@ -2728,13 +2740,13 @@ function buildTxt(){
   S.entries.forEach(e=>{
     L.push(`[${hhmmss(e.time)}] [슬라이드 ${e.slide||'-'}] [${spLabel(e.sp)}] [${TYPE_NAME[e.type]||'설명'}]${e.via?' ['+(e.via==='W'?'Whisper':'구글')+']':''}${e.imp?' ★중요':''}${e.lag!=null?` (말 끝→표시 ${((e.lag+(e.trMs||0))/1000).toFixed(1)}초, 조각 ${e.seg}초${e.asrMs!=null?', 받아쓰기 '+(e.asrMs/1000).toFixed(1)+'초':''}${e.lid!=null?', 언어판별 '+(e.lid>0?'+':'')+e.lid:''})`:''}${e.trMs!=null?` (번역 ${fmtSec(e.trMs)})`:''}`);
     L.push(`원문(${LANGS[e.lang].tag}): ${TYPE_ICON[e.type]?TYPE_ICON[e.type]+' ':''}${e.src}`);
-    if(e.raw) L.push(`  ※ 자동 교정 전: ${e.raw}`);
+    if(e.raw&&(e.termFix||!e.joined)) L.push(`  ※ 자료 용어 교정 전: ${e.raw}`);
     if(e.tgt) L.push(`번역(${LANGS[other(e.lang)].tag}): ${e.tgt}`);
     L.push('');
   });
   L.push('==================== 기술 정보 (기록 상태 확인용) ====================','');
   L.push('화자: '+['A','B','C'].map(spLabel).join(' / '));
-  L.push('음성인식: '+({auto:'자동(구글 계속 켬: 한국어=구글 글, 영어=Whisper 글)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+' · 구글 글로 전환 '+G.starts+'회·구글 결과 '+G.results+'회'+(G.fail?' · 구글 응답 없어 중단':'')+(Whisper.stalls?' · Whisper 응답 없음 '+Whisper.stalls+'회':'')+(Whisper.autoBase?' · '+Whisper.autoBase+' 자동 전환':'')+(Whisper.skipped?' · 밀려서 건너뜀 '+Whisper.skipped+'회('+Math.round(Whisper.skippedSec)+'초)':'')+(window.__gpuSoft?' · ⚠ CPU 흉내 그래픽 장치('+(window.__gpuName||'')+')':'')+(S.hiddenN?' · 탭 가려짐 '+S.hiddenN+'회':'')+' · 미리 보기 '+(S.preview===false?'끔':(Whisper.pvN||0)+'회')+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
+  L.push('음성인식: '+({auto:'자동(구글 계속 켬: 한국어=구글 글, 영어=Whisper 글)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+' · 구글 글로 전환 '+G.starts+'회·구글 결과 '+G.results+'회'+(G.fail?' · 구글 응답 없어 중단':'')+(Whisper.stalls?' · Whisper 응답 없음 '+Whisper.stalls+'회':'')+(Whisper.autoBase?' · '+Whisper.autoBase+' 자동 전환':'')+(Whisper.skipped?' · 밀려서 건너뜀 '+Whisper.skipped+'회('+Math.round(Whisper.skippedSec)+'초)':'')+(window.__gpuSoft?' · ⚠ CPU 흉내 그래픽 장치('+(window.__gpuName||'')+')':'')+(S.hiddenN?' · 탭 가려짐 '+S.hiddenN+'회':'')+' · 미리 보기 '+(S.preview===false?'끔':(Whisper.pvN||0)+'회 표시'+(Whisper.pvTry?'(시도 '+Whisper.pvTry+'회, 평균 '+((Whisper.pvSum||0)/Math.max(1,Whisper.pvK||1)/1000).toFixed(1)+'초)':''))+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
   L.push('기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
   qualityLines().forEach(x=>L.push(x));
   L.push('','※ 이 파일을 Claude에 올리고 "이 회의록으로 국외출장 결과보고서 초안을 써 줘"라고 요청하면 보고서 초안을 만들 수 있습니다.');
@@ -2777,23 +2789,23 @@ $('btnNew').onclick=()=>{
   VB.view('setup');
 };
 /* ---------- AI 핵심 요약 (크롬 내장 Summarizer, PC 전용) ---------- */
-$('btnAiSum').onclick=()=>{ if(!S.aiSumP) aiSummarize(S.entries.length+':'+(S.entries[S.entries.length-1]||{}).time); };
-function aiSummarize(key){ S.aiSumP=aiSumRun(key).finally(()=>{ S.aiSumP=null; }); return S.aiSumP; }
-async function aiSumRun(key){
+$('btnAiSum').onclick=()=>{ if(!S.aiSumP) aiSummarize(S.entries.length+':'+(S.entries[S.entries.length-1]||{}).time,true); };
+function aiSummarize(key,byClick){ S.aiSumP=aiSumRun(key,byClick).finally(()=>{ S.aiSumP=null; }); return S.aiSumP; }
+async function aiSumRun(key,byClick){
   const st=$('aiSumStatus'), note=m=>{ S.aiSumNote=m; S.aiSummary=''; S.aiBySp=null; S.aiSumFor=key; st.textContent=''; saveSoon(); renderSummary(); };
   if(!('Summarizer' in self)){ note('이 노트북의 크롬에는 AI 요약 기능이 없습니다 — 아래 화자별로 한 말을 보세요 (자세한 요약은 이 파일을 Claude에 올려 요청)'); return; }
   if(!S.entries.length) return;
   const enOf=es=>es.map(e=>e.lang==='en'?e.src:(e.tgt||'')).filter(Boolean).join('\n');
   const enText=enOf(S.entries);
   if(enText.length<200){ note(S.translate?'기록이 짧아 AI 요약은 만들지 않았습니다.':'번역을 끈 회의(② 시청 내부 회의)는 AI 요약을 만들지 않습니다 — 아래 화자별로 한 말을 보세요.'); return; }
-  let avail='available'; try{ avail=await Summarizer.availability({expectedInputLanguages:['en'],outputLanguage:'en'}); }catch(_){}
+  const AIO={type:'key-points',format:'plain-text',length:'short',sharedContext:'Transcript of a meeting between Wonju City (Korea) officials and a host organization abroad.',expectedInputLanguages:['en'],outputLanguage:'en'};   // v0.8.0: 상태 확인과 생성에 같은 설정
+  let avail='available'; try{ avail=await Summarizer.availability(AIO); }catch(_){}
+  if((avail==='downloadable'||avail==='downloading') && !byClick){ note('AI 요약 모델(크롬 Gemini Nano, 처음 한 번 수 GB)을 받아야 합니다 — 위 [🔄 AI 요약 다시 만들기]를 누르면 받기 시작합니다 (여유 공간 22GB 이상, 와이파이)'); return; }
   if(avail==='unavailable'){ note('이 노트북은 크롬 AI 요약 조건(메모리·그래픽)이 안 맞아 만들 수 없습니다 — 아래 화자별로 한 말을 보세요.'); return; }
   try{
     st.textContent=avail==='available'?'🤖 AI 요약 만드는 중…':'🤖 AI 요약 모델을 처음 받는 중… (몇 분 걸릴 수 있음, 그동안 저장해도 기본 요약은 들어감)';
     renderSummary();
-    const sm=await Summarizer.create({type:'key-points',format:'plain-text',length:'short',
-      sharedContext:'Transcript of a meeting between Wonju City (Korea) officials and a host organization abroad.',
-      expectedInputLanguages:['en'],outputLanguage:'en',
+    const sm=await Summarizer.create({...AIO,
       monitor(m){ m.addEventListener('downloadprogress',e=>st.textContent=`🤖 AI 요약 모델 받는 중… ${Math.round(e.loaded*100)}%`); }});
     const sum=async t=>{ const ch=[]; for(let i=0;i<t.length;i+=6000) ch.push(t.slice(i,i+6000)); const ps=[]; for(const c of ch) ps.push(await sm.summarize(c)); return ps.length>1?await sm.summarize(ps.join('\n')):ps[0]; };
     if(Tr.chromeOK && !Tr.pairs.enko){ try{ const sv=S.trEngine; S.trEngine='chrome'; Tr.ensure(); S.trEngine=sv; await within(Tr.creating,15000); }catch(_){} }
@@ -2890,4 +2902,4 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
 </script>
 </body>
 </html>
-<!-- END v0.7.9 -->
+<!-- END v0.8.0 -->
