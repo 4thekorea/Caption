@@ -1,4 +1,6 @@
 <!-- 버전·날짜·변경 3줄
+  index v0.7.5 | 2026-11-16 | 준비 화면 귀를 버튼 2개(통역 자동 / 시청 내부 회의)로 정리, 귀 방식·모델 선택은 '고급 설정'에 숨김, turbo 삭제(실측 말보다 10배 느림 — 저장된 turbo는 small로), v0.7.1 수정 다시 넣음: 자동 모드에서 2초 미만 Whisper 한국어 잡음 카드 버림, 24낱말 넘는 영어 문장은 나눠 번역
+  index v0.7.4 | 2026-11-16 | small→base 자동 전환이 시작 직후(그래픽 예열)에 너무 일찍 일어나던 것: 시작 40초 뒤부터, '말 끝→표시 8초 초과' 3번 연속일 때만. 회의록에 전환 시각·지연 기록
   index v0.7.3 | 2026-11-16 | 지연 대비책(v0.7.0 기반): 다른 탭에서 이미 실행 중이면 시작 막기, CPU 흉내 그래픽 장치(크롬 실험 설정) 감지·경고하고 쓰지 않음, 지연 표시등(초록·노랑·빨강), 받아쓰기가 계속 밀리면 small→base 자동 전환, 20초 넘게 밀린 조각은 건너뛰고 현재 말로 따라잡기, 구글 음성인식 끊김(aborted·not-allowed) 안내, 탭 가려짐 알림. 회의록 '귀:' 줄에 기록
   index v0.7.0 | 2026-11-13 | 자동 귀 구조 변경(사용자 결정 '가안'): 구글 한국어 음성인식을 처음부터 계속 켜 두고 조각마다 언어를 먼저 판별 — 한국어는 받아 둔 구글 글을 올리고 영어는 Whisper가 받아씀 (한국어로 바뀐 첫 문장이 깨지거나 사라지던 문제). ⚠ 자동 모드에서는 영어 음성도 구글로 전송
   v0.6.9 | 2026-11-13 | 아이패드 30초 테스트 오류(GPUDevice.createBuffer): 아이패드·아이폰은 가벼운 모드로 고정, Whisper가 실패하면 가벼운 모드로 다시(내부 회의 'Whisper만'은 음성이 밖으로 나가므로 저절로 바꾸지 않고 멈춤)
@@ -34,7 +36,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.7.3</title>
+<title>발표 통역 자막 도우미 v0.7.5</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -112,6 +114,7 @@ body.noside #side{display:none}
 #ctl:hover,#ctl:focus-within{opacity:1}
 #pageNo{min-width:64px;text-align:center;font-size:13px;color:#fff}
 #lagLamp{font-weight:700;white-space:nowrap}#lagLamp.g{color:#2fbf4a}#lagLamp.y{color:#e0b000}#lagLamp.r{color:#e5383b}
+[data-preset].on{outline:3px solid #2fbf4a;font-weight:700}
 #dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#777;vertical-align:middle}
 #dot.on{background:#2ecc71}#dot.err{background:#e53935}
 #side{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel);border-left:1px solid var(--line)}
@@ -170,8 +173,8 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.7.3 · 2026-11-16</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
-<p class="sb">발표자료를 올리고 → 귀(음성인식)·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip">v0.7.5 · 2026-11-16</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<p class="sb">발표자료를 올리고 → 음성인식·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
 <section class="box" id="restore" hidden>
@@ -204,17 +207,20 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 </section>
 
 <section class="box">
-<h2><span class="n">3</span>귀 (음성인식)</h2>
-<div class="row"><span class="sb">상황에 맞게 한 번에:</span><button data-preset="auto">해외 출장·브리핑 → 자동</button><button data-preset="ko">우리 한국어 발표만 → 가벼운 모드</button><button data-preset="secret">시청 내부 회의 → Whisper만 (음성 밖으로 안 나감)</button></div>
-<p class="sb"><b>자동</b>이면 E를 누를 필요가 없습니다. Whisper·가벼운 모드로 고정했을 때만 발표 중 <kbd>E</kbd> 로 둘 사이를 바꿉니다.</p>
+<h2><span class="n">3</span>음성인식</h2>
+<div class="row"><span class="sb">둘 중 하나를 누르세요:</span><button data-preset="auto">① 통역 (출장·브리핑·우리 발표·질의응답)</button><button data-preset="secret">② 시청 내부 회의 (음성이 밖으로 안 나감)</button></div>
+<p class="sb" id="presetNote"></p>
+<details id="earAdv"><summary class="sb">고급 설정 — 보통은 열지 않아도 됩니다</summary>
+<p class="sb">①은 한국어는 구글 글, 영어는 Whisper 글을 자동으로 보여 줍니다(E 키 필요 없음). 아래는 문제가 있을 때만 바꾸세요.</p>
 <div class="radio">
 <label><input type="radio" name="asr" value="auto" checked> <b>자동 (추천)</b> — 구글 한국어 음성인식을 계속 켜 두고, 한국어는 구글 글(정확·말하는 중 표시), 영어는 Whisper 글을 보여 줌. <b>⚠ 음성 전체(영어 포함)가 구글로 전송</b>. E 키 필요 없음</label>
 <label><input type="radio" name="asr" value="whisper"> Whisper — 말마다 언어 자동 판단, 한·영 섞어도 됨, <b>음성이 기기 밖으로 안 나감</b> (PC 크롬 권장)</label>
 <label><input type="radio" name="asr" value="web"> 가벼운 모드 — 브라우저 내장 (아이패드·저사양), <b>음성이 브라우저 회사 서버로 전송</b>, 언어는 직접 선택</label>
 </div>
-<div class="row" id="whOpts" hidden><span class="sb">Whisper 크기</span><select id="whModel"><option value="base">base — 가장 빠름, 정확도 조금 낮음 (약 150MB)</option><option value="small" selected>small — 기본, 그래픽 가속 PC 권장 (약 330MB)</option><option value="turbo">turbo — 그래픽 좋은 PC, 더 정확 (약 600MB, 테스트 필요)</option></select><button id="btnWhLoad" hidden>⬇ Whisper 내려받기</button></div>
+<div class="row" id="whOpts" hidden><span class="sb">Whisper 크기</span><select id="whModel"><option value="base">base — 가장 빠름, 정확도 조금 낮음 (약 150MB)</option><option value="small" selected>small — 기본, 그래픽 가속 PC 권장 (약 330MB)</option></select><button id="btnWhLoad" hidden>⬇ Whisper 내려받기</button></div>
 <div id="langRow"><div class="sb" style="margin-bottom:4px">가벼운 모드의 발표 언어 — <b>지금 말하는 사람의 언어와 꼭 맞춰야 합니다</b>(다르면 엉뚱한 글이 나옴). 발표 중 <kbd>L</kbd> 로 바꿈</div>
 <div class="radio"><label><input type="radio" name="lang" value="ko" checked> 한국어로 발표 → 영어 번역</label><label><input type="radio" name="lang" value="en"> 영어로 발표 → 한국어 번역</label></div></div>
+</details>
 <div id="asrStatus" class="status"></div>
 <label class="check"><input type="checkbox" id="optHint"> 자료 용어를 Whisper에 힌트로 주기 (기본 꺼짐: 켜면 이름은 잘 맞지만 문장 중간이 빠질 수 있음, 테스트용) — 받아쓰기 전에 자료 속 핵심어(원주시·그림책센터 등)를 알려 줘 고유명사를 맞게 받아씀</label>
 <label class="check"><input type="checkbox" id="optPreview" checked> 말하는 중에도 미리 보기 — Whisper가 1.2초마다 미리 받아써 흐린 카드로 보여 주고, 말이 끝나면 확정 (그래픽 가속일 때만 작동)</label>
@@ -272,7 +278,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <ul class="keys">
 <li><b>리모컨(프레젠터)</b>: 다음/이전 버튼이 보내는 <kbd>PgDn</kbd> <kbd>PgUp</kbd>·<kbd>→</kbd> <kbd>←</kbd> 로 넘어갑니다. 슬라이드쇼 버튼(<kbd>F5</kbd>)은 무시(새로고침 방지), 화면 끄기 버튼(<kbd>B</kbd> <kbd>.</kbd>)은 슬라이드만 까맣게(통역 칸은 유지), <kbd>Esc</kbd> 는 <b>2초 안에 두 번</b> 눌러야 종료.</li>
 <li>다음 <kbd>→</kbd> <kbd>PgDn</kbd> <kbd>Space</kbd> <kbd>↓</kbd> · 이전 <kbd>←</kbd> <kbd>PgUp</kbd> <kbd>↑</kbd> · 처음/끝 <kbd>Home</kbd> <kbd>End</kbd> · 화면 오른쪽 터치=다음, 왼쪽 ⅓=이전</li>
-<li>화자 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> · 자동 <kbd>0</kbd> · 언어 전환(가벼운 모드) <kbd>L</kbd> · 방금 문장 중요 <kbd>M</kbd> · <b>귀 바꾸기 <kbd>E</kbd></b> (Whisper ↔ 가벼운 모드: 우리 쪽이 한국어로 길게 발표할 때 가벼운 모드가 더 빠름)</li>
+<li>화자 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> · 자동 <kbd>0</kbd> · 언어 전환(가벼운 모드) <kbd>L</kbd> · 방금 문장 중요 <kbd>M</kbd> · <b>음성인식 바꾸기 <kbd>E</kbd></b> (Whisper ↔ 가벼운 모드: 우리 쪽이 한국어로 길게 발표할 때 가벼운 모드가 더 빠름)</li>
 <li><kbd>F</kbd> 전체화면 · <kbd>C</kbd> 통역 칸 숨김/보임 · <kbd>W</kbd> 칸 폭 · <kbd>+</kbd> <kbd>−</kbd> 통역 글자</li>
 <li>HTML 자료는 자료 안의 목차·버튼도 그대로 작동합니다(문서 안 링크는 스크롤, 인터넷 링크는 새 탭).</li>
 <li>기록은 말할 때마다 이 기기 브라우저에 자동 저장됩니다. 창이 꺼져도 다시 열면 이어서 할 수 있습니다.</li>
@@ -290,7 +296,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <iframe id="htmlFrame" title="HTML 발표자료" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox" hidden></iframe>
 <div id="stageMsg">슬라이드 없음 (통역 칸만 표시)</div>
 <div id="blackout" hidden></div>
-<div id="ctl"><span id="dot" title="마이크"></span><button id="bPrev">◀</button><span id="pageNo">-</span><button id="bNext">▶</button><button id="bSide">통역 칸</button><button id="bFull">전체화면</button><button id="bEar" title="E: Whisper ↔ 가벼운 모드">귀 E</button><button id="bImp">★ 중요</button><button id="bEnd">■ 종료</button></div>
+<div id="ctl"><span id="dot" title="마이크"></span><button id="bPrev">◀</button><span id="pageNo">-</span><button id="bNext">▶</button><button id="bSide">통역 칸</button><button id="bFull">전체화면</button><button id="bEar" title="E: Whisper ↔ 가벼운 모드">음성인식 E</button><button id="bImp">★ 중요</button><button id="bEnd">■ 종료</button></div>
 </div>
 <aside id="side">
 <div id="topic"><span class="tag">지금 주제</span><span><span id="topicText">-</span><span id="topicTr"></span></span></div>
@@ -326,7 +332,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.7.3',d:'2026-11-16',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.7.5',d:'2026-11-16',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1942,8 +1948,13 @@ const Whisper = {
 };
 function setAsrStatus(msg,cls){ const el=$('asrStatus'); if(el){ el.textContent=msg; el.className='status '+(cls||''); } }
 (async()=>{ try{ const a='gpu' in navigator && await navigator.gpu.requestAdapter(); window.__gpuOK=!!a; if(a){ const i=a.info||{}; window.__gpuName=((i.vendor||'')+' '+(i.architecture||i.description||'')).trim(); window.__gpuSoft=!!(a.isFallbackAdapter||i.isFallbackAdapter||/basic render|swiftshader|llvmpipe|warp/i.test((i.description||'')+' '+(i.device||''))||/^microsoft$/i.test(i.vendor||'')); if(window.__gpuSoft){ window.__gpuOK=false; VB.log('⚠ CPU 흉내 그래픽 장치: '+window.__gpuName); } } }catch(_){ window.__gpuOK=false; } try{ refreshAsrStatus(); }catch(_){} })();   // v0.7.3: 가짜(CPU 흉내) 장치 감지
+function presetMark(){   // v0.7.5: 지금 고른 버튼 표시
+  const cur=S.asr==='auto'?'auto':S.asr==='whisper'?'secret':'';
+  document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('on',b.getAttribute('data-preset')===cur));
+  const n=$('presetNote'); if(n) n.innerHTML=cur==='auto'?'지금: <b>① 통역</b> — 한국어·영어 자동 · ⚠ 음성이 구글로 전송됨':cur==='secret'?'지금: <b>② 시청 내부 회의</b> — 음성은 이 노트북 안에서만 처리 · 번역 없이 한국어 자막과 회의록':'지금: 고급 설정의 가벼운 모드 (음성이 구글로 전송, 언어 직접 선택)';
+}
 function refreshAsrStatus(){
-  const el=$('asrStatus'); if(!el) return;
+  const el=$('asrStatus'); if(!el) return; try{ presetMark(); }catch(_){}
   const wh=S.asr==='whisper'||S.asr==='auto';
   $('btnWhLoad').hidden = !wh;
   $('whOpts').hidden = !wh;
@@ -2195,6 +2206,20 @@ async function trTerms(text,s,t){
   return out ? Terms.restore(out,map,t) : null;
 }
 VB.trTerms=async(text,s,t,ensure)=>{ if(ensure){ readSetup(); Tr.ensure(); if(Tr.creating) await within(Tr.creating,8000); if(Tr.engine()==='hf') await within(HF.load(s+t).catch(()=>{}),20000); } return trTerms(text,s,t); };
+/* v0.7.5(v0.7.1): 24낱말 넘는 영어 문장은 쉼표·접속어에서 나눠 번역 (번역기가 긴 문장 뒷부분을 빼먹던 문제) */
+function splitLongEn(text){
+  const wc=x=>x.split(/\s+/).filter(Boolean).length; if(wc(text)<=24) return [text];
+  const pack=(parts,max)=>{ const out=[]; let cur=''; for(const p of parts){ const n=(cur+' '+p).trim(); if(cur && wc(n)>max){ out.push(cur); cur=p; } else cur=n; } if(cur) out.push(cur); return out; };
+  let out=pack(text.split(/(?<=[,;:])\s+/),20);                                   // 1) 쉼표·쌍점에서
+  out=out.flatMap(x=>wc(x)<=24?[x]:pack(x.split(/\s+(?=(?:but|because|so that|which|while|whereas|although|when)\s)/i),20));   // 2) 그래도 길면 접속어에서 ('and'로는 안 나눔 — 명사구가 갈라짐)
+  return out.flatMap(x=>{ const w=x.split(/\s+/); if(w.length<=24) return [x]; const r=[]; for(let i=0;i<w.length;i+=16) r.push(w.slice(i,i+16).join(' ')); return r; });   // 3) 마지막 수단
+}
+async function trLong(src,s,t){
+  if(s!=='en') return trTerms(src,s,t);
+  const ps=splitLongEn(src); if(ps.length<2) return trTerms(src,s,t);
+  const outs=[]; for(const p of ps){ const o=await trTerms(p,s,t); if(!o) return trTerms(src,s,t); outs.push(o.trim()); }
+  return outs.join(' ');
+}
 async function translateEntry(e){
   const s=e.lang,t=other(s);
   if(!Tr.ready(s,t)){                                                    // 번역기가 막 준비 중이면 조금 기다림 (첫 문장이 버려지지 않게)
@@ -2203,7 +2228,7 @@ async function translateEntry(e){
     if(Tr.engine()==='hf' && HF.state[s+t]==='loading') await within(HF.loadP[s+t]||Promise.resolve(),60000);
   }
   const t0=performance.now(), seq=e.trSeq=(e.trSeq||0)+1, src=e.src;
-  let out=greetFix(src,s); if(!out) try{ out=await trTerms(src,s,t); }catch(_){}
+  let out=greetFix(src,s); if(!out) try{ out=await trLong(src,s,t); }catch(_){}
   if(seq!==e.trSeq) return;                                              // 그새 뒤 말이 붙어 다시 번역 중이면 버림
   if(out && t==='ko') out=politeKo(out);
   if(out){ e.tgt=out; e.trMs=Math.round(performance.now()-t0); delete e.trFail; }
@@ -2319,6 +2344,7 @@ function onFinalAuto(t){                                                      //
 }
 function onWhisperText(text,lang,r){
   if(!S.presenting) return;
+  if(S.asr==='auto' && lang==='ko' && r && r.sec<2){ VB.log('자동 모드 Whisper 한국어 2초 미만 버림(잡음 의심): '+text); return; }   // v0.7.5(v0.7.1): 구글 글이 없는 짧은 한국어는 대개 잡음 ('-끄.' 등)
   if(S.asr==='auto' && r) VB.log('Whisper 받아씀 '+lang+' '+(r.margin!=null?r.margin.toFixed(1):''));   // v0.7.0: 전환은 lid()에서   // v0.6.3: 한국어 판별이 약해도(배경음) 두 번 연속이면 구글로   // 이 한국어 조각은 Whisper 글로 기록하고, 다음부터 구글
   S.interim=null;
   // v0.6.1: 앞뒤에 붙는 빈말('The', 'A', '#') 떼기 — 'The I'm trying…' → 'I'm trying…'
@@ -2349,10 +2375,12 @@ setInterval(()=>{
 function setLamp(sec,txt){ const el=$('lagLamp'); if(!el) return; el.className=sec<=5?'g':sec<=10?'y':'r'; el.textContent='● '+(txt||(Math.round(sec)+'초')); }
 function lagWatch(r){
   const lag=(r.lag||0)/1000; setLamp(lag);
-  const slow = lag>8 || (r.ms>r.sec*1000*0.8 && r.backlog>=1);
-  Whisper.slowRun = slow ? (Whisper.slowRun||0)+1 : (lag<5 ? 0 : (Whisper.slowRun||0));
+  // v0.7.4: 시작 후 40초(그래픽 예열)는 판단하지 않고, '말 끝→표시 8초 초과'가 3번 연속일 때만 전환 (v0.7.3은 예열 중 잠깐 느린 것을 보고 너무 일찍 바꿈)
+  if(Date.now()-(S.presentAt||0)<40000) return;
+  const slow = lag>8;
+  Whisper.slowRun = slow ? (Whisper.slowRun||0)+1 : 0;
   if(Whisper.slowRun>=3 && Whisper.model!=='base' && !Whisper.autoBase && Whisper.state==='ready'){
-    Whisper.autoBase=Whisper.model; Whisper.slowRun=0;
+    Whisper.autoBase=Whisper.model+'→base('+new Date().toTimeString().slice(0,8)+', 지연 '+lag.toFixed(1)+'초)'; Whisper.slowRun=0;
     VB.log('받아쓰기가 계속 밀림 → '+Whisper.model+'에서 base로 자동 전환');
     toast('⚠ 받아쓰기가 말 속도를 못 따라가 가벼운 모델(base)로 바꿉니다 — 영어 정확도는 조금 낮아지지만 자막이 제때 뜹니다',8000);
     Whisper.load('base').catch(e=>VB.log('base 전환 실패: '+e.message));
@@ -2404,7 +2432,7 @@ function startPresent(force){
   S.presenting=true; S.interim=null; utt={skip:0};
   VB.view('present');
   renderAll(); langInd(); earInd(); updateTopic();
-  S.autoMode='whisper'; S.hiddenN=0; Whisper.slowRun=0; Whisper.skipped=0; Whisper.skippedSec=0; Whisper.autoBase=null; setLamp(0,'-');
+  S.autoMode='whisper'; S.hiddenN=0; Whisper.slowRun=0; Whisper.skipped=0; Whisper.skippedSec=0; Whisper.autoBase=null; S.presentAt=Date.now(); setLamp(0,'-');
   if(window.__gpuSoft && S.asr!=='web') toast('⚠ 그래픽 가속이 CPU 흉내 장치로 잡혀 있어 느립니다 — 크롬 주소창에 chrome://flags → [Reset all] → [Relaunch] 후 다시 열어 주세요',12000);   // v0.7.3
   if(S.asr!=='web') startWhisperEar();
   else { Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang); toast(`${LANGS[S.lang].name} 발표 · 통역 시작 (L: 언어 전환 · Esc 두 번: 종료)`,3500); }
@@ -2490,16 +2518,16 @@ function switchLang(){
 /* v0.4.4 귀 바꾸기 (E): Whisper ↔ 가벼운 모드. 우리 쪽 한국어 발표처럼 한 언어로 길게 말할 때는 가벼운 모드가 말하는 중에도 글자를 띄워 빠름 */
 function switchEar(){
   if(!S.presenting) return;
-  if(S.asr==='auto'){ toast('자동 귀에서는 E가 필요 없습니다 — 한국어는 구글 글, 영어는 Whisper 글이 저절로 나옵니다 (③에서 고정 모드로 바꿀 수 있음)',3500); return; }
+  if(S.asr==='auto'){ toast('자동 음성인식에서는 E가 필요 없습니다 — 한국어는 구글 글, 영어는 Whisper 글이 저절로 나옵니다 (③에서 고정 모드로 바꿀 수 있음)',3500); return; }
   if(S.asr==='whisper'){
     if(!Speech.supported){ toast('이 브라우저에는 가벼운 모드(내장 음성인식)가 없습니다',2500); return; }
     if(Whisper.running) Whisper.stopMic();
     S.asr='web'; S.lang='ko'; S.interim=null; utt={skip:0};   // v0.5.3: E는 '우리 한국어 발표'용 → 한국어로 (L로 바꿈)
     Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang);
-    toast(`귀: 가벼운 모드 · ${LANGS[S.lang].name} 고정 (말하는 중에도 표시) · ⚠ 음성이 브라우저 회사 서버로 전송 · L 언어, E 다시 Whisper`,4500);
+    toast(`음성인식: 가벼운 모드 · ${LANGS[S.lang].name} 고정 (말하는 중에도 표시) · ⚠ 음성이 브라우저 회사 서버로 전송 · L 언어, E 다시 Whisper`,4500);
   }else{
     Speech.stop(); S.asr='whisper'; S.interim=null; Whisper.prepare(); startWhisperEar();
-    toast('귀: Whisper · 언어 자동 · 음성은 기기 안에서만',3000);
+    toast('음성인식: Whisper · 언어 자동 · 음성은 기기 안에서만',3000);
   }
   document.querySelectorAll('input[name=asr]').forEach(r=>r.checked=(r.value===S.asr)); refreshAsrStatus();
   langInd(); earInd(); renderLive(); saveSoon();
@@ -2676,7 +2704,7 @@ function buildTxt(){
   L.push('회의록 (발표 통역 자막 도우미)','');
   L.push('일시: '+metaDate(),'장소: '+S.meta.place,'기관: '+S.meta.org,'참석자: '+S.meta.people);
   L.push('화자: '+['A','B','C'].map(spLabel).join(' / '));
-  L.push('귀: '+({auto:'자동(구글 계속 켬: 한국어=구글 글, 영어=Whisper 글)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+' · 구글 글로 전환 '+G.starts+'회·구글 결과 '+G.results+'회'+(G.fail?' · 구글 응답 없어 중단':'')+(Whisper.stalls?' · Whisper 응답 없음 '+Whisper.stalls+'회':'')+(Whisper.autoBase?' · '+Whisper.autoBase+'→base 자동 전환':'')+(Whisper.skipped?' · 밀려서 건너뜀 '+Whisper.skipped+'회('+Math.round(Whisper.skippedSec)+'초)':'')+(window.__gpuSoft?' · ⚠ CPU 흉내 그래픽 장치('+(window.__gpuName||'')+')':'')+(S.hiddenN?' · 탭 가려짐 '+S.hiddenN+'회':'')+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
+  L.push('음성인식: '+({auto:'자동(구글 계속 켬: 한국어=구글 글, 영어=Whisper 글)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+' · 구글 글로 전환 '+G.starts+'회·구글 결과 '+G.results+'회'+(G.fail?' · 구글 응답 없어 중단':'')+(Whisper.stalls?' · Whisper 응답 없음 '+Whisper.stalls+'회':'')+(Whisper.autoBase?' · '+Whisper.autoBase+' 자동 전환':'')+(Whisper.skipped?' · 밀려서 건너뜀 '+Whisper.skipped+'회('+Math.round(Whisper.skippedSec)+'초)':'')+(window.__gpuSoft?' · ⚠ CPU 흉내 그래픽 장치('+(window.__gpuName||'')+')':'')+(S.hiddenN?' · 탭 가려짐 '+S.hiddenN+'회':'')+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
   L.push('자료: '+(D.name||'-'),'기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
   L.push(speedLine()); if(lagLine()) L.push(lagLine());
   L.push('','==================== 요약 정보 ====================','');
@@ -2767,6 +2795,7 @@ function syncSetupMeta(){ $('mDate').value=S.meta.date; $('mPlace').value=S.meta
 function syncSetupOptions(){
   const q=(n,v)=>{ const r=document.querySelector(`input[name=${n}][value=${v}]`); if(r) r.checked=true; };
   q('lang',S.lang); q('asr',S.asr||'web'); q('tre',S.trEngine||'auto');
+  if(S.whModel!=='base') S.whModel='small';   // v0.7.5: turbo 삭제 — 저장된 turbo는 small로
   $('optTranslate').checked=S.translate; $('whModel').value=S.whModel||'small';
   $('optAutoFix').checked=S.autoFix!==false; $('optKeepEn').checked=S.keepEn!==false;
   $('optJoin').checked=S.join!==false; $('optPreview').checked=S.preview!==false; $('optHint').checked=S.hint===true; $('optPolite').checked=S.polite!==false; $('optYeo').checked=S.yeoreobun!==false;
@@ -2831,4 +2860,4 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
 </script>
 </body>
 </html>
-<!-- END index v0.7.3 -->
+<!-- END index v0.7.5 -->
