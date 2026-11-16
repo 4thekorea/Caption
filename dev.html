@@ -1,5 +1,6 @@
 <!-- 버전 기록 (최신이 위)
   ※ 버전을 바꿀 때는 아래 기록 한 줄과 VB.v·VB.d(스크립트 첫 줄) 두 곳만 고침 — 화면 표시·탭 제목은 VB.v에서 자동으로 채움, 맨 끝 END 주석도 같이
+  v0.8.1 | 2026-11-16 | 15:33 실기기: 미리 보기가 한 번에 2.0초씩 걸려 15번 시도에 1번만 표시되고, 그래픽을 나눠 써 확정 자막이 평균 3.3→4.9초로 늦어짐 → 미리 보기 기본 꺼짐(열 때마다 꺼짐, 고급 설정에서만 켬). AI 요약 상태(available·downloadable·downloading·unavailable)를 회의록 기술 정보에 기록, 상태 확인이 5초 넘게 응답 없으면 안내
   v0.8.0 | 2026-11-16 | 15:13 회의록 반영 묶음: ① 미리 보기 간격 상한 2.5초(첫 번 준비 시간은 계산에서 뺌 — 첫 번이 느려 간격이 6초로 늘어 '미리 보기 1회'였음), ② 끊긴 말 이어 붙일 때 앞이 마침표로 끝나고 뒤가 대문자면 마침표 유지("Tell me more. Secret number two." → "비밀 번호 2" 오역), ③ '자료 용어 자동 교정'과 '이어 붙이기'를 따로 셈·표시(이어 붙이기가 교정으로 집계되던 문제), ④ Whisper 잡음 '-끝-' 거르기, ⑤ 14어절 넘는 한국어는 이음말에서 나눠 번역(뒷부분이 빠지던 문제), ⑥ AI 요약: 상태 확인과 생성에 같은 설정, 모델을 받아야 하면 '다시 만들기'를 눌러 받기 시작하라고 안내·진행률 표시
   v0.7.9 | 2026-11-16 | 요약 정보를 '요점 + 화자별로 한 말' 중심으로 다시 짬(사용자: 핵심어·슬라이드별 발언은 무슨 소리인지 모르겠다): 요점(크롬 AI) → 화자별로 한 말(크롬 AI 요약, 없으면 시간대별 대표 문장 3~5개) → 질문·요청 → 중요 표시. 핵심어·슬라이드별 주요 발언·화자별 문장 수 삭제, 진행 시간은 맨 위 한 줄로. AI 요약이 안 될 때 이유(모델 받는 중·기능 없음 등)를 요약 칸과 파일에 표시
   v0.7.8 | 2026-11-16 | 말하는 중 미리 보기를 실제로 뜨게: 미리 보기는 가벼운 base 모델로(확정 받아쓰기 small과 분리, 한 번 0.3~0.6초 예상), 말 시작 1.2초부터 1.2초마다, 받아쓰기가 크게 밀릴 때만(대기 2조각·지연 6초) 5초 쉼 — v0.7.7 실기기에서 '미리 보기 0회'. 말 끝 판정 쉼 0.42초→0.36초
@@ -44,7 +45,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.8.0</title>
+<title>발표 통역 자막 도우미 v0.8.1</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -182,7 +183,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip" id="verChip">v0.8.0 · 2026-11-16</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip" id="verChip">v0.8.1 · 2026-11-16</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 음성인식·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -239,7 +240,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 </details>
 <div id="asrStatus" class="status"></div>
 <div class="row"><button id="btnWhLoad" hidden>⬇ Whisper 미리 받기</button></div>
-<label class="check"><input type="checkbox" id="optPreview" checked> 말하는 중 미리 보기 — 영어(①)와 ② 내부 회의에서 말하는 도중 흐린 글자로 먼저 보여 주고, 말이 끝나면 확정. 그래픽 가속일 때만 작동하고, 받아쓰기가 밀리면 10초 쉼. 몇 번 떴는지 회의록 맨 위에 기록 (① 한국어는 구글이 원래 말하는 중에 보여 줌)</label>
+<label class="check"><input type="checkbox" id="optPreview"> 말하는 중 미리 보기 (기본 꺼짐) — 말하는 도중 흐린 글자로 먼저 보여 줌. 내장 그래픽 노트북에서는 한 번에 2초씩 걸려 거의 뜨지 않고 확정 자막을 약 1.5초 늦춤(11-16 실측) — 그래픽이 좋은 노트북에서만 켜 보세요. 다음에 열면 다시 꺼짐</label>
 <label class="check"><input type="checkbox" id="optJoin" checked> 끊긴 말 이어 붙이기 — 앞 카드가 문장 중간에서 끊겼으면(소문자·접속어로 이어짐, ~다·~요로 안 끝남) 새 카드 대신 앞 카드에 붙여 한 문장으로 다시 번역</label>
 </section>
 
@@ -340,7 +341,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.8.0',d:'2026-11-16',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.8.1',d:'2026-11-16',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1862,7 +1863,7 @@ const Whisper = {
       else if(v.silent>=40) this.endSeg();                                     // 짧은 말이라도 1.2초 조용하면 보냄
       else if(sec>=maxSec) this.cutAtValley();                                 // 쉬지 않고 이어지면 가장 조용한 곳을 골라 자름
       else if(this.peekFirst && this.peekFirst() && !this.pv && !this.busy && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=40) this.lidPeek();   // 구글 모드에서 말하는 중 1.2초마다 언어 확인 → 영어면 바로 Whisper로
-      else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.min(83,Math.ceil((this.pvMs||400)*1.5/30)))) this.previewNow();   // v0.8.0: 1.2초~최대 2.5초마다   // v0.7.8: 1.2초마다(미리 보기 시간의 2배 이상)   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
+      else if(gpu && S.preview===true && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.min(83,Math.ceil((this.pvMs||400)*1.5/30)))) this.previewNow();   // v0.8.0: 1.2초~최대 2.5초마다   // v0.7.8: 1.2초마다(미리 보기 시간의 2배 이상)   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
     }
   },
   lidPeek(){
@@ -2748,6 +2749,7 @@ function buildTxt(){
   L.push('화자: '+['A','B','C'].map(spLabel).join(' / '));
   L.push('음성인식: '+({auto:'자동(구글 계속 켬: 한국어=구글 글, 영어=Whisper 글)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+' · 구글 글로 전환 '+G.starts+'회·구글 결과 '+G.results+'회'+(G.fail?' · 구글 응답 없어 중단':'')+(Whisper.stalls?' · Whisper 응답 없음 '+Whisper.stalls+'회':'')+(Whisper.autoBase?' · '+Whisper.autoBase+' 자동 전환':'')+(Whisper.skipped?' · 밀려서 건너뜀 '+Whisper.skipped+'회('+Math.round(Whisper.skippedSec)+'초)':'')+(window.__gpuSoft?' · ⚠ CPU 흉내 그래픽 장치('+(window.__gpuName||'')+')':'')+(S.hiddenN?' · 탭 가려짐 '+S.hiddenN+'회':'')+' · 미리 보기 '+(S.preview===false?'끔':(Whisper.pvN||0)+'회 표시'+(Whisper.pvTry?'(시도 '+Whisper.pvTry+'회, 평균 '+((Whisper.pvSum||0)/Math.max(1,Whisper.pvK||1)/1000).toFixed(1)+'초)':''))+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
   L.push('기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
+  L.push('AI 요약 상태: '+(('Summarizer' in self)?(S.aiAvail||'확인 전'):'크롬에 기능 없음'));
   qualityLines().forEach(x=>L.push(x));
   L.push('','※ 이 파일을 Claude에 올리고 "이 회의록으로 국외출장 결과보고서 초안을 써 줘"라고 요청하면 보고서 초안을 만들 수 있습니다.');
   return L.join('\r\n');
@@ -2799,7 +2801,9 @@ async function aiSumRun(key,byClick){
   const enText=enOf(S.entries);
   if(enText.length<200){ note(S.translate?'기록이 짧아 AI 요약은 만들지 않았습니다.':'번역을 끈 회의(② 시청 내부 회의)는 AI 요약을 만들지 않습니다 — 아래 화자별로 한 말을 보세요.'); return; }
   const AIO={type:'key-points',format:'plain-text',length:'short',sharedContext:'Transcript of a meeting between Wonju City (Korea) officials and a host organization abroad.',expectedInputLanguages:['en'],outputLanguage:'en'};   // v0.8.0: 상태 확인과 생성에 같은 설정
-  let avail='available'; try{ avail=await Summarizer.availability(AIO); }catch(_){}
+  let avail='available'; try{ avail=await Promise.race([Summarizer.availability(AIO), new Promise(r=>setTimeout(()=>r('timeout'),5000))]); }catch(e){ avail='error: '+e.message; }
+  S.aiAvail=avail; VB.log('AI 요약 상태: '+avail);   // v0.8.1: 회의록 기술 정보에 기록
+  if(avail==='timeout'||String(avail).startsWith('error')){ note('크롬 AI 요약이 응답하지 않습니다('+avail+') — 크롬을 다시 시작한 뒤 [🔄 AI 요약 다시 만들기]를 눌러 보세요.'); return; }
   if((avail==='downloadable'||avail==='downloading') && !byClick){ note('AI 요약 모델(크롬 Gemini Nano, 처음 한 번 수 GB)을 받아야 합니다 — 위 [🔄 AI 요약 다시 만들기]를 누르면 받기 시작합니다 (여유 공간 22GB 이상, 와이파이)'); return; }
   if(avail==='unavailable'){ note('이 노트북은 크롬 AI 요약 조건(메모리·그래픽)이 안 맞아 만들 수 없습니다 — 아래 화자별로 한 말을 보세요.'); return; }
   try{
@@ -2872,7 +2876,7 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
   $('mDate').value=nowLocal(); readSetup();
   const saved=loadSaved();
   if(saved){
-    Object.assign(S,{hint:saved.v>=5?saved.hint===true:false,preview:saved.preview!==false,join:saved.join!==false,polite:saved.polite!==false,yeoreobun:saved.yeoreobun!==false,autoFix:saved.autoFix!==false,keepEn:saved.keepEn!==false,speakers:saved.speakers||S.speakers,asr:(saved.v>=4?saved.asr:'auto')||'auto',whModel:(saved.v>=3?saved.whModel:'small')||'small',trEngine:saved.trEngine||'auto',lang:saved.lang||'ko',translate:saved.translate!==false});
+    Object.assign(S,{hint:saved.v>=5?saved.hint===true:false,preview:false,join:saved.join!==false,polite:saved.polite!==false,yeoreobun:saved.yeoreobun!==false,autoFix:saved.autoFix!==false,keepEn:saved.keepEn!==false,speakers:saved.speakers||S.speakers,asr:(saved.v>=4?saved.asr:'auto')||'auto',whModel:(saved.v>=3?saved.whModel:'small')||'small',trEngine:saved.trEngine||'auto',lang:saved.lang||'ko',translate:saved.translate!==false});
     syncSetupOptions(); Terms.rebuild();
   }
   if(saved && (saved.entries?.length || saved.deckName)){
@@ -2902,4 +2906,4 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
 </script>
 </body>
 </html>
-<!-- END v0.8.0 -->
+<!-- END v0.8.1 -->
