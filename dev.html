@@ -1,5 +1,7 @@
 <!-- 버전 기록 (최신이 위)
   ※ 버전을 바꿀 때는 아래 기록 한 줄과 VB.v·VB.d(스크립트 첫 줄) 두 곳만 고침 — 화면 표시·탭 제목은 VB.v에서 자동으로 채움, 맨 끝 END 주석도 같이
+  v0.7.9 | 2026-11-16 | 요약 정보를 '요점 + 화자별로 한 말' 중심으로 다시 짬(사용자: 핵심어·슬라이드별 발언은 무슨 소리인지 모르겠다): 요점(크롬 AI) → 화자별로 한 말(크롬 AI 요약, 없으면 시간대별 대표 문장 3~5개) → 질문·요청 → 중요 표시. 핵심어·슬라이드별 주요 발언·화자별 문장 수 삭제, 진행 시간은 맨 위 한 줄로. AI 요약이 안 될 때 이유(모델 받는 중·기능 없음 등)를 요약 칸과 파일에 표시
+  v0.7.8 | 2026-11-16 | 말하는 중 미리 보기를 실제로 뜨게: 미리 보기는 가벼운 base 모델로(확정 받아쓰기 small과 분리, 한 번 0.3~0.6초 예상), 말 시작 1.2초부터 1.2초마다, 받아쓰기가 크게 밀릴 때만(대기 2조각·지연 6초) 5초 쉼 — v0.7.7 실기기에서 '미리 보기 0회'. 말 끝 판정 쉼 0.42초→0.36초
   v0.7.7 | 2026-11-16 | 회의록: 회의록 화면을 열면 AI 핵심 요약을 저절로 만듦(버튼은 '다시 만들기'로), 'PC 크롬·테스트 필요' 문구 삭제, .txt·.md 저장 파일 맨 위에 요약(AI 핵심 요약 → 질문 → 중요 → 슬라이드별 → 개요)이 먼저 오고 기술 정보(음성인식·속도·지연)는 맨 아래로. 저장할 때 요약이 만들어지는 중이면 기다렸다가 넣음
   v0.7.6 | 2026-11-16 | 화면 정리: 안 쓰는 기능 삭제(자료 용어 Whisper 힌트, 번역 엔진 고르기·번역 비교, 음성인식 E 버튼, 태블릿 문구), ② 시청 내부 회의 설명, 말하는 중 미리 보기 작동 조건 완화(밀림 2.5초→3.5초, 쉬는 시간 20초→10초)·횟수를 회의록에 기록, 번역 칸 문구 정리, 휴대폰·태블릿에서 열면 'PC 크롬 전용' 안내, 버전 표시를 한 곳(VB.v)에서 관리. v0.7.5 이후 같은 번호로 보낸 수정(열 때마다 small, 받아 둔 모델 '이미 받음' 표시, 내려받기 버튼 위치, '귀'→'음성인식')을 이 번호로 묶음
   v0.7.5 | 2026-11-16 | 음성인식을 버튼 2개(① 통역 / ② 시청 내부 회의)로, 모델 선택은 고급 설정에, turbo 삭제(실측 말보다 10배 느림), v0.7.1 수정 다시 넣음(2초 미만 한국어 잡음 카드 버림, 24낱말 넘는 영어 나눠 번역)
@@ -41,7 +43,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>발표 통역 자막 도우미 v0.7.7</title>
+<title>발표 통역 자막 도우미 v0.7.9</title>
 <style>
 :root{--bg:#0f1219;--panel:#161b26;--p2:#1c2330;--line:#2b3344;--text:#e6e9f2;--muted:#9aa3b8;--acc:#4f9cf7;--warn:#e9a83b;--bad:#e0596a;--ok:#6fcf97;--fs:100;--sideW:36vw}
 *{box-sizing:border-box}
@@ -179,7 +181,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 
 <!-- ===================== 1. 준비 화면 ===================== -->
 <main id="setup">
-<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip" id="verChip">v0.7.7 · 2026-11-16</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
+<div class="row"><h1>발표 통역 자막 도우미</h1><span class="sp"></span><span class="chip" id="verChip">v0.7.9 · 2026-11-16</span><span class="chip warn" id="jsChip">JS 확인 중…</span><button id="btnDiag">진단 보기</button></div>
 <p class="sb">발표자료를 올리고 → 음성인식·번역을 고르고 → [▶ 발표 시작]. 왼쪽에 자료 원본, 오른쪽에 말한 사람별 통역 카드가 뜹니다.</p>
 
 <section class="box" id="envWarn" hidden></section>
@@ -337,7 +339,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="modal"><div class="mbox"><h3 id="mTitle"></h3><div id="mBody"></div><p><button id="mClose">닫기</button></p></div></div>
 <script>
 /* ===== S0 최소 코어: 기록·오류 띠 ===== */
-var VB={v:'0.7.7',d:'2026-11-16',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
+var VB={v:'0.7.9',d:'2026-11-16',errors:[],logs:[],R:{nav:[]},inPresent:false,H:{}};
 VB.$=function(id){return document.getElementById(id);};
 VB.el=function(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!==undefined&&x!==null)e.textContent=x;return e;};
 VB.tm=function(){return new Date().toTimeString().slice(0,8);};
@@ -1403,7 +1405,7 @@ function saveSoon(){ clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,400);
 function saveNow(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify({
     v:5, savedAt:Date.now(), lang:S.lang, translate:S.translate, trEngine:S.trEngine, autoFix:S.autoFix, keepEn:S.keepEn, asr:S.asr, whModel:S.whModel, join:S.join, preview:S.preview, hint:S.hint, polite:S.polite, yeoreobun:S.yeoreobun,
-    meta:S.meta, entries:S.entries, aiSummary:S.aiSummary, speakers:S.speakers, deckName:D.name||'', page:D.cur||0
+    meta:S.meta, entries:S.entries, aiSummary:S.aiSummary, aiBySp:S.aiBySp||null, aiSumFor:S.aiSumFor||'', speakers:S.speakers, deckName:D.name||'', page:D.cur||0
   })); }catch(e){ console.warn('자동 저장 실패',e); }
 }
 function loadSaved(){
@@ -1715,6 +1717,13 @@ self.onmessage = e => {
   chain = chain.then(async () => {
     try{
       if(d.cmd==='load'){ await loadLid(); await loadAsr(d.model); self.postMessage({ id:d.id, type:'ok', device:used, why:why.join(' / ') }); return; }
+      if(d.cmd==='pv'){   // v0.7.8: 말하는 중 미리 보기 — 언어판별용으로 이미 올려 둔 base 모델로 빠르게 (확정 받아쓰기는 small)
+        const t0=performance.now(); const { input_features } = await lidP(d.audio);
+        let lang=d.lang, margin=0;
+        if(!lang){ const out=await lidM({ input_features, decoder_input_ids:new Tensor('int64', BigInt64Array.from([BigInt(ids.sot)]), [1,1]) }); const L=out.logits.data, V=out.logits.dims[2], b=(out.logits.dims[1]-1)*V; margin=L[b+ids.ko]-L[b+ids.en]; lang=margin>0?'ko':'en'; }
+        const gen=await lidM.generate({ inputs:input_features, language:lang==='ko'?'ko':'en', task:'transcribe', max_new_tokens:Math.min(120, Math.ceil(d.audio.length/16000*(lang==='ko'?14:10))+10) });
+        const text=(lidP.batch_decode(gen,{ skip_special_tokens:true })[0]||'').trim();
+        self.postMessage({ id:d.id, type:'ok', text, lang, margin, ms:Math.round(performance.now()-t0) }); return; }
       if(d.cmd==='lid'){ const s=await detect(d.audio); const m=s.ko-s.en; self.postMessage({ id:d.id, type:'ok', lang:m>0?'ko':'en', margin:m }); return; }   // v0.6.0: 언어만 판별 (자동 귀)
       if(d.cmd==='asr'){
         const t0=performance.now();
@@ -1846,12 +1855,12 @@ const Whisper = {
       if(rms>th) v.loud++;                                                     // v0.6.7: '말이 있었는지'는 절대 기준으로 셈 (작게 말한 문장이 버려지던 문제)
       if(rms > Math.max(th, v.lvl*0.15)) v.silent=0; else v.silent++;           // 배경 소리가 있어도 말소리보다 확 작아지면 '쉼' (v0.6.7: 0.3→0.15, 작은 목소리를 쉼으로 보지 않게)
       const sec=v.buf.length*0.03, gpu=this.device==='webgpu';
-      const sil=gpu?14:18, maxSec=gpu?6:this.maxSec;                         // v0.5.1: 그래픽 가속이면 0.42초 쉼·최대 6초(빠름), CPU면 0.55초·8초
+      const sil=gpu?12:18, maxSec=gpu?6:this.maxSec;   // v0.7.8: 그래픽 가속이면 0.36초 쉼                         // v0.5.1: 그래픽 가속이면 0.42초 쉼·최대 6초(빠름), CPU면 0.55초·8초
       if(v.silent>=sil && v.buf.length>=50) this.endSeg();                     // 1.5초 미만 조각은 다음 말과 함께 (짧은 조각은 Whisper가 잘못 듣기 쉬움)
       else if(v.silent>=40) this.endSeg();                                     // 짧은 말이라도 1.2초 조용하면 보냄
       else if(sec>=maxSec) this.cutAtValley();                                 // 쉬지 않고 이어지면 가장 조용한 곳을 골라 자름
       else if(this.peekFirst && this.peekFirst() && !this.pv && !this.busy && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=40) this.lidPeek();   // 구글 모드에서 말하는 중 1.2초마다 언어 확인 → 영어면 바로 Whisper로
-      else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.ceil(this.avgMs*2.5/30))) this.previewNow();   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
+      else if(gpu && this.handlers.preview && !this.pv && !this.busy && !this.queue.length && Date.now()>this.pvHold && v.buf.length>=40 && v.buf.length-(v.lastPv||0)>=Math.max(40,Math.ceil((this.pvMs||400)*2/30))) this.previewNow();   // v0.7.8: 1.2초마다(미리 보기 시간의 2배 이상)   // v0.5.2: 미리 보기 간격은 받아쓰기 속도에 맞춰 (최소 1.2초, 받아쓰기 시간의 2.5배) → 확정 받아쓰기를 밀어내지 않음
     }
   },
   lidPeek(){
@@ -1864,7 +1873,7 @@ const Whisper = {
     const v=this.vad, fr=v.buf; v.lastPv=fr.length;
     const a=new Float32Array(fr.length*480); fr.forEach((f,i)=>a.set(f,i*480)); const sec=a.length/16000;
     this.pv=true;
-    this.transcribe(a,this.prevLang,v.pvLang||undefined).then(r=>{ this.pv=false; if(this.vad.speaking && !v.pvLang) v.pvLang=r.lang; if(this.vad.speaking && !this.busy && !whBad(r.text,sec)) this.handlers.preview?.(r.text,r.lang,r); }).catch(()=>{ this.pv=false; });
+    this.pvAt=Date.now(); this.call({cmd:'pv',audio:a,lang:v.pvLang||undefined},[a.buffer]).then(r=>{ this.pv=false; this.pvMs=r.ms; if(this.vad.speaking && !v.pvLang) v.pvLang=r.lang; if(this.vad.speaking && !this.busy && !whBad(r.text,sec)) this.handlers.preview?.(r.text,r.lang,r); }).catch(()=>{ this.pv=false; });
   },
   cutAtValley(){
     const v=this.vad, n=v.buf.length, from=Math.max(Math.floor(n*0.5), n-67);
@@ -1915,7 +1924,7 @@ const Whisper = {
         this.itemAt=0; this.lastOkAt=Date.now();
         r.sec=sec; r.lag=Date.now()-q.end; r.backlog=this.queue.length;
         this.avgMs=this.avgMs*0.7+r.ms*0.3;
-        if(r.lag>3500||r.backlog>=1){ this.pvHold=Date.now()+10000; }   // v0.7.6: 2.5초·20초는 너무 자주 쉬어 미리 보기가 거의 안 떴음   // 밀리면 20초 동안 미리 보기를 쉬고 확정 받아쓰기에 집중 (v0.6.3 변경은 되돌림)
+        if(r.lag>6000||r.backlog>=2){ this.pvHold=Date.now()+5000; }   // v0.7.8: 크게 밀릴 때만 잠깐 쉼   // v0.7.6: 2.5초·20초는 너무 자주 쉬어 미리 보기가 거의 안 떴음   // 밀리면 20초 동안 미리 보기를 쉬고 확정 받아쓰기에 집중 (v0.6.3 변경은 되돌림)
         if(!whBad(r.text,sec)){ this.prevLang=r.lang; this.handlers.text?.(r.text, r.lang, r); }
         else console.info('Whisper 결과 버림(지어낸 말·반복 의심):', r.text);
       }catch(e){ console.warn('Whisper 오류',e); this.handlers.error?.(e); }
@@ -2671,29 +2680,39 @@ function qualityLines(){   // v0.7.7: 기술 정보(속도·지연·교정) — 
   const nt=S.translate?E.filter(e=>!e.tgt).length:0; if(nt) L.push(`- 번역 없는 문장 ${nt}개`);
   return L;
 }
+function spanLine(){ const E=S.entries; if(!E.length) return ''; const t0=new Date(E[0].time), t1=new Date(E[E.length-1].time); return `${hhmmss(E[0].time).slice(0,5)} ~ ${hhmmss(E[E.length-1].time).slice(0,5)} (약 ${Math.max(1,Math.round((t1-t0)/60000))}분) · 기록 ${E.length}문장`; }
+const BAD_PICK=/^[\s\-–]*끝[\s\-–.]*$|-끝-/;
+function pickLines(es,n){   // v0.7.9: AI가 없을 때 — 시간대를 n칸으로 나눠 칸마다 '알맞은 길이(8~35낱말)·번역 있음' 문장 하나
+  const ok=es.filter(e=>!isQuestion(e) && !BAD_PICK.test(e.src) && e.type!=='greeting');
+  if(!ok.length) return [];
+  const len=e=>words(e.src).length, score=e=>(e.imp?100:0)+(e.tgt||e.lang==='ko'?10:0)+(len(e)>=8&&len(e)<=35?20:0)+Math.min(len(e),35)/5;
+  const k=Math.min(n,ok.length), out=[];
+  for(let b=0;b<k;b++){ const part=ok.slice(Math.floor(b*ok.length/k),Math.floor((b+1)*ok.length/k)); if(part.length) out.push(part.reduce((a,x)=>score(x)>score(a)?x:a)); }
+  return out;
+}
 function buildSummaryLines(withQuality){
   const E=S.entries; if(!E.length) return ['기록이 없습니다.'];
-  const L=[], t0=new Date(E[0].time), t1=new Date(E[E.length-1].time), mins=Math.max(1,Math.round((t1-t0)/60000));
-  const nko=E.filter(e=>e.lang==='ko').length, nen=E.length-nko;
-  const slides=[...new Set(E.map(e=>e.slide).filter(Boolean))];
-  // v0.7.7: 내용을 먼저 — AI 핵심 요약 → 질문 → 중요 → 슬라이드별 → 개요
-  if(S.aiSummary){ L.push('■ 핵심 요약 (크롬 AI 자동 요약 · 틀릴 수 있음)'); S.aiSummary.split('\n').filter(x=>x.trim()).forEach(x=>L.push(x.startsWith('-')?x:'- '+x)); L.push(''); }
-  else if(S.aiSumNote){ L.push('■ 핵심 요약','- '+S.aiSumNote,''); }
-  const qs=E.filter(isQuestion); if(qs.length){ L.push(`■ 질문·요청 (${qs.length})`); qs.forEach(e=>L.push(`- [${hhmmss(e.time).slice(0,5)} · ${spLabel(e.sp)}] ${e.src}${e.lang==='en'&&e.tgt?' / '+e.tgt:''}`)); L.push(''); }
-  const imp=E.filter(e=>e.imp); if(imp.length){ L.push(`■ 중요 표시 (${imp.length})`); imp.forEach(e=>L.push(`- [${spLabel(e.sp)} · 슬라이드 ${e.slide||'-'}] ${koText(e)}`)); L.push(''); }
-  if(slides.length){
-    L.push('■ 슬라이드별 주요 발언');
-    for(const sl of slides.sort((a,b)=>a-b)){
-      const es=E.filter(e=>e.slide===sl), pick=es.find(e=>e.imp)||[...es].sort((a,b)=>koText(b).length-koText(a).length)[0];
-      const tt=(D.titles||[])[sl-1]; L.push(`- ${sl}번${tt?' 「'+tt+'」':''} (${es.length}문장): ${koText(pick)}`);
-    }
-    L.push('');
+  const L=[];
+  // 1) 요점 (크롬 AI)
+  L.push('■ 요점'+(S.aiSummary?' (크롬 AI 자동 요약 · 틀릴 수 있음)':''));
+  if(S.aiSummary) S.aiSummary.split('\n').filter(x=>x.trim()).forEach(x=>L.push(x.startsWith('-')?x:'- '+x));
+  else L.push('- '+(S.aiSumNote||(S.aiSumP?'AI 요약을 만드는 중입니다…':'AI 요약 없음 — 아래 화자별로 한 말을 보세요')));
+  L.push('');
+  // 2) 화자별로 한 말
+  L.push('■ 화자별로 한 말');
+  for(const k of ['B','A','C']){
+    const es=E.filter(e=>e.sp===k); if(!es.length) continue;
+    L.push(`▸ ${spLabel(k)} (${es.length}문장 · ${hhmmss(es[0].time).slice(0,5)}~${hhmmss(es[es.length-1].time).slice(0,5)})`);
+    const ai=S.aiBySp&&S.aiBySp[k];
+    if(ai) ai.split('\n').filter(x=>x.trim()).forEach(x=>L.push(x.startsWith('-')?x:'- '+x));
+    else pickLines(es,5).forEach(e=>L.push(`- [${hhmmss(e.time).slice(0,5)}${e.slide?' · '+e.slide+'장':''}] ${koText(e)}`));
   }
-  L.push('■ 개요');
-  L.push(`- 진행: ${hhmmss(E[0].time).slice(0,5)} ~ ${hhmmss(E[E.length-1].time).slice(0,5)} (약 ${mins}분), 기록 ${E.length}문장 (한국어 ${nko} · 영어 ${nen})`);
-  const bySp=['A','B','C'].map(k=>[k,E.filter(e=>e.sp===k).length]).filter(x=>x[1]); if(bySp.length) L.push('- 화자별 발언: '+bySp.map(([k,n])=>`${spLabel(k)} ${n}`).join(' · '));
-  if(slides.length) L.push(`- 다룬 슬라이드: ${slides.length}장 (${Math.min(...slides)}~${Math.max(...slides)}번)`);
-  const kw=keywords(); if(kw.length) L.push(`- 핵심어(나온 횟수): ${kw.join(', ')}`);
+  L.push('');
+  // 3) 질문·요청
+  const qs=E.filter(isQuestion); if(qs.length){ L.push(`■ 질문·요청 (${qs.length})`); qs.forEach(e=>L.push(`- [${hhmmss(e.time).slice(0,5)} · ${spLabel(e.sp)}] ${e.lang==='en'&&e.tgt?e.tgt+' ('+e.src+')':e.src}`)); L.push(''); }
+  // 4) 중요 표시
+  const imp=E.filter(e=>e.imp); if(imp.length){ L.push(`■ 중요 표시 (${imp.length})`); imp.forEach(e=>L.push(`- [${hhmmss(e.time).slice(0,5)} · ${spLabel(e.sp)}] ${koText(e)}`)); L.push(''); }
+  while(L.length && !L[L.length-1]) L.pop();
   if(withQuality){ L.push('','■ 기록 품질'); qualityLines().forEach(x=>L.push(x)); }
   return L;
 }
@@ -2702,7 +2721,7 @@ function buildTxt(){
   const L=[];
   L.push('회의록 (발표 통역 자막 도우미)','');
   L.push('일시: '+metaDate(),'장소: '+S.meta.place,'기관: '+S.meta.org,'참석자: '+S.meta.people);
-  L.push('자료: '+(D.name||'-'));
+  L.push('자료: '+(D.name||'-'),'진행: '+spanLine());
   L.push('','==================== 요약 (먼저 읽기) ====================','');   // v0.7.7: 내용 요약을 맨 위에
   buildSummaryLines(false).forEach(x=>L.push(x));
   L.push('','==================== 전체 기록 ====================','');
@@ -2723,9 +2742,9 @@ function buildTxt(){
 }
 function buildMd(){
   const cell=s=>(s||'').replace(/\|/g,'\\|').replace(/\n/g,' ');
-  const L=['# 회의록','',`**일시** ${metaDate()||'-'} · **장소** ${S.meta.place||'-'} · **기관** ${S.meta.org||'-'} · **참석자** ${S.meta.people||'-'} · **자료** ${D.name||'-'}`];
+  const L=['# 회의록','',`**일시** ${metaDate()||'-'} · **장소** ${S.meta.place||'-'} · **기관** ${S.meta.org||'-'} · **참석자** ${S.meta.people||'-'} · **자료** ${D.name||'-'} · **진행** ${spanLine()}`];
   L.push('','## 요약 (먼저 읽기)','');   // v0.7.7: 내용 요약을 맨 위에
-  buildSummaryLines(false).forEach(x=>{ if(!x) return; if(x.startsWith('■ ')) L.push('','### '+x.slice(2)); else L.push(x); });
+  buildSummaryLines(false).forEach(x=>{ if(!x) return; if(x.startsWith('■ ')) L.push('','### '+x.slice(2)); else if(x.startsWith('▸ ')) L.push('','**'+x.slice(2)+'**'); else L.push(x); });
   L.push('','## 전체 기록','','| 시각 | 슬라이드 | 화자 | 종류 | 중요 | 원문 | 번역 |','|---|---|---|---|---|---|---|');
   S.entries.forEach(e=>L.push(`| ${hhmmss(e.time)} | ${e.slide||'-'} | ${cell(spLabel(e.sp))} | ${TYPE_NAME[e.type]||'설명'} | ${e.imp?'★':''} | ${TYPE_ICON[e.type]||''}${cell(e.src)}${e.raw?' <br><sub>교정 전: '+cell(e.raw)+'</sub>':''} | ${cell(e.tgt)} |`));
   L.push('','## 기술 정보 (기록 상태 확인용)','');
@@ -2754,34 +2773,37 @@ $('btnBack').onclick=startPresent;
 $('btnSetup').onclick=()=>{ VB.view('setup'); refreshTrStatus(); };
 $('btnNew').onclick=()=>{
   if(!confirm('지금 기록을 지우고 새 회의를 시작할까요?\n(먼저 .txt/.md로 저장했는지 확인하세요)')) return;
-  S.entries=[]; S.aiSummary=''; S.aiSumNote=''; S.aiSumFor=''; S.override=null; S.lastLang=''; S.meta={date:nowLocal(),place:'',org:'',people:''}; syncSetupMeta(); saveNow(); clearCards();
+  S.entries=[]; S.aiSummary=''; S.aiBySp=null; S.aiSumNote=''; S.aiSumFor=''; S.override=null; S.lastLang=''; S.meta={date:nowLocal(),place:'',org:'',people:''}; syncSetupMeta(); saveNow(); clearCards();
   VB.view('setup');
 };
 /* ---------- AI 핵심 요약 (크롬 내장 Summarizer, PC 전용) ---------- */
 $('btnAiSum').onclick=()=>{ if(!S.aiSumP) aiSummarize(S.entries.length+':'+(S.entries[S.entries.length-1]||{}).time); };
 function aiSummarize(key){ S.aiSumP=aiSumRun(key).finally(()=>{ S.aiSumP=null; }); return S.aiSumP; }
 async function aiSumRun(key){
-  const st=$('aiSumStatus'), note=m=>{ S.aiSumNote=m; S.aiSummary=''; S.aiSumFor=key; st.textContent=''; saveSoon(); renderSummary(); };
-  if(!('Summarizer' in self)){ note('이 노트북의 크롬에는 AI 요약 기능이 없어 기본 요약만 있습니다 — 자세한 요약은 이 파일을 Claude에 올려 요청하세요.'); return; }
+  const st=$('aiSumStatus'), note=m=>{ S.aiSumNote=m; S.aiSummary=''; S.aiBySp=null; S.aiSumFor=key; st.textContent=''; saveSoon(); renderSummary(); };
+  if(!('Summarizer' in self)){ note('이 노트북의 크롬에는 AI 요약 기능이 없습니다 — 아래 화자별로 한 말을 보세요 (자세한 요약은 이 파일을 Claude에 올려 요청)'); return; }
   if(!S.entries.length) return;
-  const enText=S.entries.map(e=>e.lang==='en'?e.src:(e.tgt||'')).filter(Boolean).join('\n');
-  if(enText.length<200){ note(S.translate?'기록이 짧아 AI 요약은 만들지 않았습니다.':'번역을 끈 회의(② 시청 내부 회의)는 AI 요약을 만들지 않습니다 — 아래 기본 요약만.'); return; }
+  const enOf=es=>es.map(e=>e.lang==='en'?e.src:(e.tgt||'')).filter(Boolean).join('\n');
+  const enText=enOf(S.entries);
+  if(enText.length<200){ note(S.translate?'기록이 짧아 AI 요약은 만들지 않았습니다.':'번역을 끈 회의(② 시청 내부 회의)는 AI 요약을 만들지 않습니다 — 아래 화자별로 한 말을 보세요.'); return; }
+  let avail='available'; try{ avail=await Summarizer.availability({expectedInputLanguages:['en'],outputLanguage:'en'}); }catch(_){}
+  if(avail==='unavailable'){ note('이 노트북은 크롬 AI 요약 조건(메모리·그래픽)이 안 맞아 만들 수 없습니다 — 아래 화자별로 한 말을 보세요.'); return; }
   try{
-    st.textContent='🤖 AI 핵심 요약 만드는 중… (처음 한 번은 요약 모델을 받느라 몇 분 걸릴 수 있음)';
-    const sm=await Summarizer.create({type:'key-points',format:'plain-text',length:'medium',
+    st.textContent=avail==='available'?'🤖 AI 요약 만드는 중…':'🤖 AI 요약 모델을 처음 받는 중… (몇 분 걸릴 수 있음, 그동안 저장해도 기본 요약은 들어감)';
+    renderSummary();
+    const sm=await Summarizer.create({type:'key-points',format:'plain-text',length:'short',
       sharedContext:'Transcript of a meeting between Wonju City (Korea) officials and a host organization abroad.',
       expectedInputLanguages:['en'],outputLanguage:'en',
-      monitor(m){ m.addEventListener('downloadprogress',e=>st.textContent=`🤖 AI 요약 모델 내려받는 중… ${Math.round(e.loaded*100)}%`); }});
-    const chunks=[]; for(let i=0;i<enText.length;i+=6000) chunks.push(enText.slice(i,i+6000));
-    const parts=[]; for(const c of chunks) parts.push(await sm.summarize(c));
-    const en=parts.length>1?await sm.summarize(parts.join('\n')):parts[0];
-    const lines=en.split('\n').map(x=>x.replace(/^[\s*•\-]+/,'').trim()).filter(Boolean);
-    let ko=lines;
-    if(Tr.chromeOK){ try{ if(!Tr.pairs.enko){ const sv=S.trEngine; S.trEngine='chrome'; Tr.ensure(); S.trEngine=sv; await within(Tr.creating,15000); }
-      if(Tr.pairs.enko){ ko=[]; for(const x of lines) ko.push(await Tr.pairs.enko.translate(x)); } }catch(e){ console.warn(e); } }
-    S.aiSummary=ko.map(x=>'- '+x).join('\n'); S.aiSumNote=''; S.aiSumFor=key; saveSoon(); renderSummary();
-    st.textContent='';
-  }catch(e){ console.error(e); VB.log('AI 요약 실패: '+e.message); note('AI 요약을 만들지 못해 기본 요약만 있습니다 — 자세한 요약은 이 파일을 Claude에 올려 요청하세요.'); }
+      monitor(m){ m.addEventListener('downloadprogress',e=>st.textContent=`🤖 AI 요약 모델 받는 중… ${Math.round(e.loaded*100)}%`); }});
+    const sum=async t=>{ const ch=[]; for(let i=0;i<t.length;i+=6000) ch.push(t.slice(i,i+6000)); const ps=[]; for(const c of ch) ps.push(await sm.summarize(c)); return ps.length>1?await sm.summarize(ps.join('\n')):ps[0]; };
+    if(Tr.chromeOK && !Tr.pairs.enko){ try{ const sv=S.trEngine; S.trEngine='chrome'; Tr.ensure(); S.trEngine=sv; await within(Tr.creating,15000); }catch(_){} }
+    const toKo=async en=>{ const ls=en.split('\n').map(x=>x.replace(/^[\s*•\-]+/,'').trim()).filter(Boolean); if(!Tr.pairs.enko) return ls.map(x=>'- '+x).join('\n'); const o=[]; for(const x of ls){ try{ o.push('- '+await Tr.pairs.enko.translate(x)); }catch(_){ o.push('- '+x); } } return o.join('\n'); };
+    st.textContent='🤖 요점 만드는 중…';
+    S.aiSummary=await toKo(await sum(enText)); renderSummary();
+    const by={};
+    for(const k of ['B','A','C']){ const t=enOf(S.entries.filter(e=>e.sp===k)); if(t.length>=200){ st.textContent='🤖 '+spLabel(k)+' 요약 중…'; by[k]=await toKo(await sum(t)); } }   // 짧은 화자는 대표 문장으로
+    S.aiBySp=by; S.aiSumNote=''; S.aiSumFor=key; saveSoon(); renderSummary(); st.textContent='';
+  }catch(e){ console.error(e); VB.log('AI 요약 실패: '+e.message); note('AI 요약을 만들지 못했습니다 — 아래 화자별로 한 말을 보세요 (자세한 요약은 이 파일을 Claude에 올려 요청)'); }
 }
 
 /* ---------- 진단 (파일 이름·내용·기록 문장은 넣지 않음) ---------- */
@@ -2846,7 +2868,7 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
     $('restoreInfo').textContent=`${saved.meta?.org||'(기관 미입력)'} · 기록 ${saved.entries?.length||0}문장 · 자료 ${saved.deckName||'없음'} · 마지막 저장 ${when}`;
     $('restore').hidden=false;
     const apply=async()=>{
-      Object.assign(S,{meta:saved.meta||S.meta,entries:saved.entries||[],aiSummary:saved.aiSummary||''});
+      Object.assign(S,{meta:saved.meta||S.meta,entries:saved.entries||[],aiSummary:saved.aiSummary||'',aiBySp:saved.aiBySp||null,aiSumFor:saved.aiSumFor||''});
       syncSetupMeta(); syncSetupOptions();
       let f=await idbGet('deck'); if(!f){ const o=await idbGet('pdf'); if(o&&o.data) f={name:o.name||'자료.pdf',type:'pdf',data:o.data}; }
       if(f&&f.data){ try{ await VB.loadFile(new File([f.data],f.name)); if(saved.page) VB.goPage(saved.page); }catch(e){ VB.err('자료 복구: '+e.message); } }
@@ -2857,7 +2879,7 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
     $('btnDiscard').onclick=async()=>{
       if(!confirm('저장된 기록과 발표자료를 지울까요? (먼저 회의록을 저장했는지 확인하세요)')) return;
       try{ localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_OLD); }catch(_){}
-      S.entries=[]; S.aiSummary=''; S.aiSumNote=''; S.aiSumFor=''; saveNow(); await idbDel('deck'); await idbDel('pdf'); $('restore').hidden=true;
+      S.entries=[]; S.aiSummary=''; S.aiBySp=null; S.aiSumNote=''; S.aiSumFor=''; saveNow(); await idbDel('deck'); await idbDel('pdf'); $('restore').hidden=true;
     };
   }
   refreshTrStatus(); refreshAsrStatus(); updateSpChips(); langInd(); earInd();
@@ -2868,4 +2890,4 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
 </script>
 </body>
 </html>
-<!-- END v0.7.7 -->
+<!-- END v0.7.9 -->
