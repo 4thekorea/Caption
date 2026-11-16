@@ -1,4 +1,5 @@
 <!-- 버전·날짜·변경 3줄
+  index v0.7.3 | 2026-11-16 | 지연 대비책(v0.7.0 기반): 다른 탭에서 이미 실행 중이면 시작 막기, CPU 흉내 그래픽 장치(크롬 실험 설정) 감지·경고하고 쓰지 않음, 지연 표시등(초록·노랑·빨강), 받아쓰기가 계속 밀리면 small→base 자동 전환, 20초 넘게 밀린 조각은 건너뛰고 현재 말로 따라잡기, 구글 음성인식 끊김(aborted·not-allowed) 안내, 탭 가려짐 알림. 회의록 '귀:' 줄에 기록
   index v0.7.0 | 2026-11-13 | 자동 귀 구조 변경(사용자 결정 '가안'): 구글 한국어 음성인식을 처음부터 계속 켜 두고 조각마다 언어를 먼저 판별 — 한국어는 받아 둔 구글 글을 올리고 영어는 Whisper가 받아씀 (한국어로 바뀐 첫 문장이 깨지거나 사라지던 문제). ⚠ 자동 모드에서는 영어 음성도 구글로 전송
   v0.6.9 | 2026-11-13 | 아이패드 30초 테스트 오류(GPUDevice.createBuffer): 아이패드·아이폰은 가벼운 모드로 고정, Whisper가 실패하면 가벼운 모드로 다시(내부 회의 'Whisper만'은 음성이 밖으로 나가므로 저절로 바꾸지 않고 멈춤)
   v0.6.8 | 2026-11-13 | 자동 귀에서 구글이 받아쓴 한국어 문장이 두 번 기록되던 문제 수정
@@ -110,6 +111,7 @@ body.noside #side{display:none}
 #ctl{position:absolute;left:50%;bottom:10px;z-index:5;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:4px 8px;background:rgba(15,18,25,.8);border:1px solid var(--line);border-radius:10px;opacity:.35;transition:opacity .2s}
 #ctl:hover,#ctl:focus-within{opacity:1}
 #pageNo{min-width:64px;text-align:center;font-size:13px;color:#fff}
+#lagLamp{font-weight:700;white-space:nowrap}#lagLamp.g{color:#2fbf4a}#lagLamp.y{color:#e0b000}#lagLamp.r{color:#e5383b}
 #dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#777;vertical-align:middle}
 #dot.on{background:#2ecc71}#dot.err{background:#e53935}
 #side{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel);border-left:1px solid var(--line)}
@@ -294,7 +296,7 @@ mark{color:inherit;background:rgba(233,168,59,.3);border-radius:3px;padding:0 2p
 <div id="topic"><span class="tag">지금 주제</span><span><span id="topicText">-</span><span id="topicTr"></span></span></div>
 <div id="sideHead"><span class="chip ca" data-sp="A">1 · A</span><span class="chip cb" data-sp="B">2 · B</span><span class="chip cc" data-sp="C">3 · C</span><span class="chip" data-sp="0">0 · 자동</span><span class="sp"></span><span class="chip" id="langInd">언어 대기</span></div>
 <div id="capList"><div class="empty">말을 시작하면 여기에 말한 사람별 통역 카드가 뜹니다.</div></div>
-<div id="sideCtl"><span class="sb" id="earInd">-</span><span class="sp"></span><button id="fsDown">가−</button><button id="fsUp">가+</button></div>
+<div id="sideCtl"><span class="sb" id="earInd">-</span><span class="sb" id="lagLamp" title="말 끝→자막 표시까지 걸린 시간 (초록 5초 이하 · 노랑 10초 이하 · 빨강 그 이상)">● -</span><span class="sp"></span><button id="fsDown">가−</button><button id="fsUp">가+</button></div>
 </aside>
 </div>
 
@@ -1641,6 +1643,7 @@ const Speech = {
     r.onerror=e=>{
       if(g!==this.gen) return;
       console.warn('음성인식 오류:', e.error, e.message); VB.log('구글 음성인식 오류: '+e.error); Speech.lastErr=e.error;
+      if(e.error==='aborted' && this.quiet){ Speech.abortN=(Speech.abortN||0)+1; if(Speech.abortN===3 && !G.results) toast('⚠ 구글 음성인식이 자꾸 끊깁니다 — 다른 탭(도우미·화상회의 등)이 마이크를 쓰고 있지 않은지 확인하세요',8000); }   // v0.7.3
       if(e.error==='no-speech'||e.error==='aborted') return;
       if(this.quiet){ if(/network|not-allowed|service-not-allowed|audio-capture/.test(e.error)) this.handlers.error?.(e.error); return; }   // v0.7.0
       if(e.error==='not-allowed'||e.error==='service-not-allowed'){
@@ -1691,7 +1694,8 @@ const prog = stage => p => self.postMessage({ type:'progress', stage, p:{ status
 let f16=null, gpu=null;
 // 그래픽 가속이 '있다고만' 하고 실제로는 못 쓰는 기기가 있어, 실제 장치를 받아 와서 확인
 let why=[];
-async function gpuOK(){ if(gpu!==null) return gpu; try{ if(!self.navigator.gpu){ why.push('이 브라우저(작업자)에 WebGPU 없음'); gpu=false; return gpu; } const a=await self.navigator.gpu.requestAdapter(); gpu=!!a; f16=!!(a && a.features.has('shader-f16')); if(!a) why.push('그래픽 장치(어댑터)를 못 받음 — 크롬 그래픽 가속 꺼짐 또는 그래픽칩 차단 목록'); }catch(e){ gpu=false; f16=false; why.push('WebGPU 확인 오류: '+(e&&e.message||e)); } return gpu; }
+function gpuSoft(a){ const i=a.info||{}; return !!(a.isFallbackAdapter||i.isFallbackAdapter||/basic render|swiftshader|llvmpipe|warp/i.test((i.description||'')+' '+(i.device||''))||/^microsoft$/i.test(i.vendor||'')); }   // v0.7.3
+async function gpuOK(){ if(gpu!==null) return gpu; try{ if(!self.navigator.gpu){ why.push('이 브라우저(작업자)에 WebGPU 없음'); gpu=false; return gpu; } const a=await self.navigator.gpu.requestAdapter(); if(a && gpuSoft(a)){ why.push('CPU 흉내 그래픽 장치만 잡힘(Microsoft Basic Render 등) — 크롬 실험 설정(chrome://flags) 확인'); gpu=false; f16=false; return gpu; } gpu=!!a; f16=!!(a && a.features.has('shader-f16')); if(!a) why.push('그래픽 장치(어댑터)를 못 받음 — 크롬 그래픽 가속 꺼짐 또는 그래픽칩 차단 목록'); }catch(e){ gpu=false; f16=false; why.push('WebGPU 확인 오류: '+(e&&e.message||e)); } return gpu; }
 async function hasF16(){ await gpuOK(); return f16; }
 async function loadLid(){
   if(lidM) return;
@@ -1705,6 +1709,7 @@ async function loadLid(){
 }
 async function loadAsr(key){
   if(asr && asrKey===key) return;
+  if(asr){ try{ await asr.dispose(); }catch(_){} asr=null; asrKey=null; }   // v0.7.3: small→base 바꿀 때 그래픽 메모리 비움
   const m = MODELS[key]; let last=null;
   for(const o of m.opts){
     if(o.device==='webgpu' && !(await gpuOK())) continue;
@@ -1910,6 +1915,7 @@ const Whisper = {
         q={a:m,end:n.end,start:q.start,lid:q.lid,merged:(q.merged||1)+1};
       }
       const a=q.a, sec=a.length/16000;
+      if(this.queue.length && Date.now()-q.end>20000){ this.skipped=(this.skipped||0)+1; this.skippedSec=(this.skippedSec||0)+sec; VB.log('20초 넘게 밀린 조각 건너뜀 ('+sec.toFixed(1)+'초)'); this.handlers.skip?.(sec); continue; }   // v0.7.3: 30초 늦은 자막은 쓸모없음 → 현재 말로 따라잡기
       this.handlers.busy?.(true, this.queue.length);
       try{
         if(this.state!=='ready') await this.load();
@@ -1935,7 +1941,7 @@ const Whisper = {
   }
 };
 function setAsrStatus(msg,cls){ const el=$('asrStatus'); if(el){ el.textContent=msg; el.className='status '+(cls||''); } }
-(async()=>{ try{ const a='gpu' in navigator && await navigator.gpu.requestAdapter(); window.__gpuOK=!!a; }catch(_){ window.__gpuOK=false; } try{ refreshAsrStatus(); }catch(_){} })();
+(async()=>{ try{ const a='gpu' in navigator && await navigator.gpu.requestAdapter(); window.__gpuOK=!!a; if(a){ const i=a.info||{}; window.__gpuName=((i.vendor||'')+' '+(i.architecture||i.description||'')).trim(); window.__gpuSoft=!!(a.isFallbackAdapter||i.isFallbackAdapter||/basic render|swiftshader|llvmpipe|warp/i.test((i.description||'')+' '+(i.device||''))||/^microsoft$/i.test(i.vendor||'')); if(window.__gpuSoft){ window.__gpuOK=false; VB.log('⚠ CPU 흉내 그래픽 장치: '+window.__gpuName); } } }catch(_){ window.__gpuOK=false; } try{ refreshAsrStatus(); }catch(_){} })();   // v0.7.3: 가짜(CPU 흉내) 장치 감지
 function refreshAsrStatus(){
   const el=$('asrStatus'); if(!el) return;
   const wh=S.asr==='whisper'||S.asr==='auto';
@@ -2281,12 +2287,12 @@ function gFinal(t){
 }
 function gError(code){
   VB.log('구글 음성인식 사용 불가: '+code); G.fail=true; Speech.stop(); if(S.autoMode==='google') autoToWhisper();
-  toast('구글 음성인식을 쓸 수 없어('+code+') 한국어도 Whisper가 받아씁니다 — 1분 뒤 다시 시도',5000); earInd();
+  toast(/not-allowed/.test(code)?'⚠ 구글 음성인식이 막혔습니다(not-allowed) — 다른 탭이 이미 쓰고 있거나 마이크 허용이 필요합니다. 한국어도 Whisper가 받아씁니다 — 1분 뒤 다시 시도':'구글 음성인식을 쓸 수 없어('+code+') 한국어도 Whisper가 받아씁니다 — 1분 뒤 다시 시도',/not-allowed/.test(code)?9000:5000); earInd();   // v0.7.3
   setTimeout(()=>{ if(S.presenting && S.asr==='auto' && G.fail && Whisper.running){ G.fail=false; G.miss=0; startGoogleQuiet(); } },60000);
 }
 function startGoogleQuiet(){
   if(!Speech.supported) return;
-  GB.buf=[]; GB.t0=0; GB.cur='';
+  GB.buf=[]; GB.t0=0; GB.cur=''; Speech.abortN=0;
   Speech.quiet=true; Speech.handlers={state(){},interim:gInterim,final:gFinal,error:gError}; Speech.start('ko'); VB.log('구글 음성인식(한국어) 계속 듣기 시작'); earInd();
 }
 function autoToGoogle(from){
@@ -2326,6 +2332,7 @@ function onWhisperText(text,lang,r){
   if(!text) return;
   const {done,rest}=splitSentences(text,lang);
   (rest?done.concat([rest]):done).map(x=>lang==='en'?x.replace(/^(?:(?:#|A|The|the)\s+)+(?=[A-Z])/,''):x).filter(x=>!whBad(x,9)).forEach(x=>commitSentence(x,lang,r));
+  if(r) lagWatch(r);   // v0.7.3
   if(r && (r.backlog>=2||r.lag>4000) && Date.now()-Whisper.lagWarnAt>60000){ Whisper.lagWarnAt=Date.now(); toast('말이 빠르게 이어져 받아쓰기가 잠시 밀렸습니다 — 미리 보기를 잠깐 쉬고 따라잡는 중',3000); }
   renderLive();
 }
@@ -2337,6 +2344,35 @@ setInterval(()=>{
   VB.log('Whisper 응답 없음 25초 ('+(Whisper.device||'-')+', '+(Whisper.model||'-')+')');
   toast('⚠ 받아쓰기가 25초 넘게 응답하지 않습니다. 이 기기의 그래픽 성능이 부족할 수 있습니다 — 발표를 마친 뒤 준비 화면에서 base 모델을 고르거나 [우리 한국어 발표만](가벼운 모드)으로 바꿔 보세요',9000);
 },5000);
+
+/* v0.7.3: 지연 대비책 — 표시등 · small→base 자동 전환 · 탭 가려짐 · 다른 탭 실행 감지 */
+function setLamp(sec,txt){ const el=$('lagLamp'); if(!el) return; el.className=sec<=5?'g':sec<=10?'y':'r'; el.textContent='● '+(txt||(Math.round(sec)+'초')); }
+function lagWatch(r){
+  const lag=(r.lag||0)/1000; setLamp(lag);
+  const slow = lag>8 || (r.ms>r.sec*1000*0.8 && r.backlog>=1);
+  Whisper.slowRun = slow ? (Whisper.slowRun||0)+1 : (lag<5 ? 0 : (Whisper.slowRun||0));
+  if(Whisper.slowRun>=3 && Whisper.model!=='base' && !Whisper.autoBase && Whisper.state==='ready'){
+    Whisper.autoBase=Whisper.model; Whisper.slowRun=0;
+    VB.log('받아쓰기가 계속 밀림 → '+Whisper.model+'에서 base로 자동 전환');
+    toast('⚠ 받아쓰기가 말 속도를 못 따라가 가벼운 모델(base)로 바꿉니다 — 영어 정확도는 조금 낮아지지만 자막이 제때 뜹니다',8000);
+    Whisper.load('base').catch(e=>VB.log('base 전환 실패: '+e.message));
+  }
+}
+setInterval(()=>{   // 결과가 안 나오는 동안에도 밀림을 표시
+  if(!S.presenting || S.asr==='web' || !Whisper.running){ const el=$('lagLamp'); if(el && !S.presenting){ el.className=''; el.textContent='● -'; } return; }
+  const q=Whisper.queue[0]; if(q){ const w=(Date.now()-q.end)/1000; if(w>5) setLamp(w,'밀림 '+Math.round(w)+'초'); }
+},1000);
+document.addEventListener('visibilitychange',()=>{
+  if(!S.presenting) return;
+  if(document.hidden){ S.hiddenAt=Date.now(); return; }
+  if(S.hiddenAt && Date.now()-S.hiddenAt>5000){ S.hiddenN=(S.hiddenN||0)+1; VB.log('도우미 탭이 '+Math.round((Date.now()-S.hiddenAt)/1000)+'초 가려져 있었음'); toast('도우미 탭이 가려져 있던 동안 받아쓰기가 느려졌을 수 있습니다 — 발표 중에는 이 탭을 화면에 띄워 두세요',6000); }
+  S.hiddenAt=0;
+});
+const RunBC=('BroadcastChannel' in self)?new BroadcastChannel('pcap-run'):null;
+let otherRunAt=0;
+if(RunBC) RunBC.onmessage=e=>{ const m=e.data||{};
+  if(m.t==='ping' && S.presenting){ RunBC.postMessage({t:'busy'}); toast('⚠ 다른 탭에서 도우미를 또 시작하려 했습니다 — 둘이 함께 돌면 둘 다 느려져 막았습니다',6000); }
+  if(m.t==='busy') otherRunAt=Date.now(); };
 function setDot(st){ $('dot').className=st==='on'?'on':st==='err'?'err':''; earInd(); }
 function earInd(){
   const on=$('dot').className==='on';
@@ -2356,7 +2392,8 @@ function readSetup(){
   S.speakers={A:$('spA').value.trim(),B:$('spB').value.trim(),C:$('spC').value.trim()};
   S.meta={date:$('mDate').value,place:$('mPlace').value.trim(),org:$('mOrg').value.trim(),people:$('mPeople').value.trim()};
 }
-function startPresent(){
+function startPresent(force){
+  if(force!==true && RunBC){ otherRunAt=0; RunBC.postMessage({t:'ping'}); setTimeout(()=>{ if(otherRunAt){ VB.log('다른 탭에서 실행 중 → 시작 막음'); VB.note('다른 탭에서 이미 실행 중','크롬의 다른 탭(또는 다른 창)에서 도우미가 이미 통역 중입니다.\n둘이 함께 돌면 마이크와 그래픽을 나눠 써서 둘 다 느려지고, 구글 음성인식도 서로 빼앗습니다.\n\n그 탭을 닫은 뒤 다시 [시작]을 눌러 주세요.'); } else startPresent(true); },300); return; }   // v0.7.3
   if(testing) stopTest();
   Speech.quiet=false;
   readSetup();
@@ -2367,7 +2404,8 @@ function startPresent(){
   S.presenting=true; S.interim=null; utt={skip:0};
   VB.view('present');
   renderAll(); langInd(); earInd(); updateTopic();
-  S.autoMode='whisper';
+  S.autoMode='whisper'; S.hiddenN=0; Whisper.slowRun=0; Whisper.skipped=0; Whisper.skippedSec=0; Whisper.autoBase=null; setLamp(0,'-');
+  if(window.__gpuSoft && S.asr!=='web') toast('⚠ 그래픽 가속이 CPU 흉내 장치로 잡혀 있어 느립니다 — 크롬 주소창에 chrome://flags → [Reset all] → [Relaunch] 후 다시 열어 주세요',12000);   // v0.7.3
   if(S.asr!=='web') startWhisperEar();
   else { Speech.handlers={state:setDot,interim:onInterim,final:onFinal}; Speech.start(S.lang); toast(`${LANGS[S.lang].name} 발표 · 통역 시작 (L: 언어 전환 · Esc 두 번: 종료)`,3500); }
   saveSoon();
@@ -2402,6 +2440,7 @@ async function startWhisperEar(){
         if(S.translate && Tr.ready(lang,other(lang))) trTerms(src,lang,other(lang)).then(out=>{ if(out && S.interim && S.interim.src===src+' …'){ S.interim.tgt=other(lang)==='ko'?politeKo(out):out; renderLive(); } }).catch(()=>{});
       },
       text:onWhisperText,
+      skip(sec){ if(Date.now()-(Whisper.skipWarnAt||0)>30000){ Whisper.skipWarnAt=Date.now(); toast('받아쓰기가 20초 넘게 밀려 앞부분('+sec.toFixed(0)+'초)을 건너뛰고 지금 말로 따라잡습니다',4000); } },   // v0.7.3
       lid(l,q){
         if(S.autoMode==='whisper'){                                            // v0.7.0: 구글은 뒤에서 듣는 중 — 이 조각이 한국어인지 먼저 봄
           if(q.peek) return false;
@@ -2637,7 +2676,7 @@ function buildTxt(){
   L.push('회의록 (발표 통역 자막 도우미)','');
   L.push('일시: '+metaDate(),'장소: '+S.meta.place,'기관: '+S.meta.org,'참석자: '+S.meta.people);
   L.push('화자: '+['A','B','C'].map(spLabel).join(' / '));
-  L.push('귀: '+({auto:'자동(구글 계속 켬: 한국어=구글 글, 영어=Whisper 글)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+' · 구글 글로 전환 '+G.starts+'회·구글 결과 '+G.results+'회'+(G.fail?' · 구글 응답 없어 중단':'')+(Whisper.stalls?' · Whisper 응답 없음 '+Whisper.stalls+'회':'')+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
+  L.push('귀: '+({auto:'자동(구글 계속 켬: 한국어=구글 글, 영어=Whisper 글)',whisper:'Whisper',web:'가벼운 모드(구글)'}[S.asr]||S.asr)+' · Whisper '+(Whisper.model||'-')+'('+(Whisper.device||'-')+') · 받아쓴 곳 Whisper '+S.entries.filter(e=>e.via==='W').length+' / 구글 '+S.entries.filter(e=>e.via==='G').length+' · 구글 글로 전환 '+G.starts+'회·구글 결과 '+G.results+'회'+(G.fail?' · 구글 응답 없어 중단':'')+(Whisper.stalls?' · Whisper 응답 없음 '+Whisper.stalls+'회':'')+(Whisper.autoBase?' · '+Whisper.autoBase+'→base 자동 전환':'')+(Whisper.skipped?' · 밀려서 건너뜀 '+Whisper.skipped+'회('+Math.round(Whisper.skippedSec)+'초)':'')+(window.__gpuSoft?' · ⚠ CPU 흉내 그래픽 장치('+(window.__gpuName||'')+')':'')+(S.hiddenN?' · 탭 가려짐 '+S.hiddenN+'회':'')+(Speech.lastErr?' · 구글 오류: '+Speech.lastErr:''));
   L.push('자료: '+(D.name||'-'),'기록 문장 수: '+S.entries.length+' (중요 '+S.entries.filter(e=>e.imp).length+')');
   L.push(speedLine()); if(lagLine()) L.push(lagLine());
   L.push('','==================== 요약 정보 ====================','');
